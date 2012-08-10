@@ -196,11 +196,17 @@ class FetLifeUser extends FetLife {
 
     /**
      * Logs in to FetLife as the given user.
+     *
+     * @return bool True if login was successful, false otherwise.
      */
     function logIn () {
         $this->connection = new FetLifeConnection($this);
         $response = $this->connection->logIn();
-        $this->id = $this->connection->findUserId($response['body']);
+        if ($this->id = $this->connection->findUserId($response['body'])) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
