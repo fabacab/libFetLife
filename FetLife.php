@@ -234,7 +234,28 @@ class FetLifeUser extends FetLife {
 }
 
 /**
+ * Base class for various content items within FetLife.
+ */
+class FetLifeContent extends FetLife {
+    var $published_on;
+}
+
+/**
+ * Generic class for comments on FetLife contents.
+ */
+class FetLifeComment extends FetLifeContent {
+    var $content;
+    var $id;
+
+    // Return the full URL, with fragment identifier.
+    function getPermalink () {
+    }
+}
+
+/**
  * Profile information for a FetLife User.
+ *
+ * TODO: Figure out if this should actually extend FetLifeContent instead.
  */
 class FetLifeUserProfile extends FetLifeUser {
     var $avatar_url;
@@ -245,7 +266,7 @@ class FetLifeUserProfile extends FetLifeUser {
 /**
  * A Status object.
  */
-class FetLifeStatus extends FetLife {
+class FetLifeStatus extends FetLifeContent {
     const MAX_STATUS_LENGTH = 200; // Character count.
     var $text;
     var $url;
@@ -253,4 +274,23 @@ class FetLifeStatus extends FetLife {
     function __construct ($str) {
         $this->text = $str;
     }
+}
+
+/**
+ * An Event object.
+ */
+class FetLifeEvent extends FetLifeContent {
+    // See event creation form at https://fetlife.com/events/new
+    var $title;
+    var $tagline;
+    var $dt_start;
+    var $dt_end;
+    var $venue_name;
+    var $venue_address;
+    var $cost;
+    var $dress_code;
+    var $description;
+    var $created_by; // A FetLifeUser who created the event.
+    var $rsvp_yes;   // An array of FetLifeUser objects who are RSVP'ed "Yes."
+    var $rsvp_maybe; // An array of FetLifeUser objects who are RSVP'ed "Maybe."
 }
