@@ -141,6 +141,18 @@ class FetLifeConnection extends FetLife {
     }
 
     /**
+     * Given some HTML from FetLife, this finds a user's nickname.
+     *
+     * @param string $str Some raw HTML expected to be from FetLife.com.
+     * @return mixed User nickname on Success. False on failure.
+     */
+    public function findUserNickname ($str) {
+        $matches = array();
+        preg_match('/<title>([-_A-Za-z0-9]+) - Kinksters - FetLife<\/title>/', $str, $matches);
+        return $matches[1];
+    }
+
+    /**
      * Given some HTML from FetLife, this finds the current CSRF Token.
      *
      * @param string $str Some raw HTML expected to be form FetLife.com.
@@ -207,6 +219,18 @@ class FetLifeUser extends FetLife {
             return end(explode('/', $url_parts['path']));
         }
     }
+
+    /**
+     * Translates a FetLife user's ID to their nickname.
+     */
+    function getUserNicknameById ($id = NULL) {
+        if (isset($this->id) && !$id) {
+            $id = $this->id;
+        }
+
+        $result = $this->connection->doHttpGet("/users/$id");
+        return $this->connection->findUserNickname($result['body']);
+    }
 }
 
 /**
@@ -218,10 +242,15 @@ class FetLifeUserProfile extends FetLifeUser {
     // etc...
 }
 
+/**
+ * A Status object.
+ */
 class FetLifeStatus extends FetLife {
     const MAX_STATUS_LENGTH = 200; // Character count.
-    var $notice_text;
+    var $text;
+    var $url;
 
-    private function prepare ($str) {
+    function __construct ($str) {
+        $this->text = $str;
     }
 }
