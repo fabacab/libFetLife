@@ -23,68 +23,109 @@
  * @link      http://maymay.net/
  */
 
+// Uncomment for minimal debugging.
+ini_set('log_errors', true);
+ini_set('error_log', '/tmp/php_errors.log');
+
+/**
+ * Base class.
+ */
 class FetLife {
-    var $fl_nick;     // FetLife nickname for current user.
-    var $fl_pw;       // FetLife password for current user.
-    const FETLIFE_MAX_STATUS_LENGTH = 200; // Character count.
+    static $base_url = 'https://fetlife.com'; // No trailing slash!
+}
 
-    function __construct ($nick_or_email, $password) {
-        $this->fl_nick = $nick_or_email;
-        $this->fl_pw = $password;
-    }
+/**
+ * Handles network connections, logins, logouts, etc.
+ */
+class FetLifeConnection extends FetLife {
+    var $usr;        // Associated FetLifeUser object.
+    var $cookiejar;  // File path to cookies for this user's connection.
+    var $csrf_token; // The current CSRF authenticity token to use for doing HTTP POSTs.
 
-    public function isSignedIn () {
-        if (false !== $this->obtainFetLifeSession($this->nick_fl, $this->fl_pw)) {
-            return true;
+    function __construct ($usr) {
+        $this->usr = $usr;
+        // Initialize cookiejar (session store), etc.
+        $dir = dirname(__FILE__) . '/fl_sessions';
+        if (!file_exists($dir)) {
+            if (!mkdir($dir, 0700)) {
+                die("Failed to create FetLife Sessions store directory at $dir");
+            }
         } else {
-            return false;
+            $this->cookiejar = "$dir/{$this->usr->nickname}";
         }
     }
 
     /**
-     * Grab a new FetLife session cookie via FetLife.com login form,
-     * and saves it in the cookie jar.
+     * Log in to FetLife.
      *
-     * @param string $nick_or_email The nickname or email address used for FetLife.
-     * @param string $password The FetLife password.
-     * @return mixed FetLife user ID and current CSRF token on success, false otherwise.
+     * @param object $usr A FetLifeUser to log in as.
+     * @return bool True if successful, false otherwise.
      */
-    private function obtainFetLifeSession ($nick_or_email, $password) {
+    public function logIn () {
         // Grab FetLife login page HTML to get CSRF token.
-        $ch = curl_init('https://fetlife.com/login');
+        $ch = curl_init(parent::$base_url . '/login');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        $fl_csrf_token = $this->findFetLifeCSRFToken(curl_exec($ch));
+        $this->setCsrfToken($this->findCsrfToken(curl_exec($ch)));
         curl_close($ch);
 
         // Set up login credentials.
         $post_data = http_build_query(array(
-            'nickname_or_email' => $nick_or_email,
-            'password' => $password,
-            'authenticity_token' => $fl_csrf_token,
+            'nickname_or_email' => $this->usr->nickname,
+            'password' => $this->usr->password,
+            'authenticity_token' => $this->csrf_token,
             'commit' => 'Login+to+FetLife' // Emulate pushing the "Login to FetLife" button.
         ));
 
-        // Login to FetLife.
-        $ch = curl_init('https://fetlife.com/session');
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $post_data);
-        //curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookiejar); // save session cookies
+        // Log in to FetLife.
+        return $this->doHttpPost('/session', $post_data);
+    }
+
+    /**
+     * Calls doHttpRequest with the POST option set.
+     */
+    public function doHttpPost ($url_path, $data = '') {
+        return $this->doHttpRequest($url_path, $data, 'POST');
+    }
+
+    /**
+     * Calls doHttpRequest with the GET option set.
+     */
+    public function doHttpGet ($url_path, $data = '') {
+        return $this->doHttpRequest($url_path, $data); // 'GET' is the default.
+    }
+
+    /**
+     * Generic HTTP request function.
+     *
+     * @param string $data Parameters to send in the HTTP request. Recommended to use http_build_query().
+     * @param string $method The HTTP method to use, like GET (default), POST, etc.
+     * @return array $r The result of the HTTP request.
+     */
+    private function doHttpRequest ($url_path, $data, $method = 'GET') {
+        //var_dump($this->csrf_token);
+        if (!empty($data) && 'GET' === $method) {
+            $url_path += "?$data";
+        }
+        $ch = curl_init(parent::$base_url . $url_path);
+        if ('POST' === $method) {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        }
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookiejar); // use session cookies
+        curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookiejar); // save session cookies
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLINFO_HEADER_OUT, true);
 
-        $fetlife_html = curl_exec($ch); // Grab FetLife HTML page.
-
+        $r = array();
+        $r['body'] = curl_exec($ch); // Grab FetLife response body.
+        $this->setCsrfToken($this->findCsrfToken($r['body'])); // Update on each request.
+        $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
 
-        // TODO: Flesh out some of this error handling stuff.
-        if (curl_errno($ch)) {
-            return false; // Some kind of error with cURL.
-        } else {
-            $r = array();
-            $r['fl_id'] = $this->findFetLifeUserId($fetlife_html);
-            $r['fl_csrf_token'] = $this->findFetLifeCSRFToken($fetlife_html);
-            return $r;
-        }
+        return $r;
     }
 
     /**
@@ -93,7 +134,7 @@ class FetLife {
      * @param string $str Some raw HTML expected to be from FetLife.com.
      * @return mixed User ID on success. False on failure.
      */
-    private function findFetLifeUserId ($str) {
+    public function findUserId ($str) {
         $matches = array();
         preg_match('/var currentUserId = ([0-9]+);/', $str, $matches);
         return $matches[1];
@@ -105,16 +146,82 @@ class FetLife {
      * @param string $str Some raw HTML expected to be form FetLife.com.
      * @return mixed CSRF Token string on success. False on failure.
      */
-    private function findFetLifeCSRFToken ($str) {
+    private function findCsrfToken ($str) {
         $matches = array();
         preg_match('/<meta name="csrf-token" content="([+a-zA-Z0-9&#;=-]+)"\/>/', $str, $matches);
         // Decode numeric HTML entities if there are any. See also:
         //     http://www.php.net/manual/en/function.html-entity-decode.php#104617
         $r = preg_replace_callback(
             '/(&#[0-9]+;)/',
-            "myConvertHtmlEntities", // see function definition, below
+            create_function(
+                '$m',
+                'return mb_convert_encoding($m[1], \'UTF-8\', \'HTML-ENTITIES\');'
+            ),
             $matches[1]
         );
         return $r;
+    }
+
+    private function setCsrfToken ($csrf_token) {
+        $this->csrf_token = $csrf_token;
+    }
+}
+
+/**
+ * A FetLife User.
+ */
+class FetLifeUser extends FetLife {
+    var $nickname;
+    var $password;
+    var $id;
+    var $email_address;
+    var $connection; // A FetLifeConnection object to handle network requests.
+
+    function __construct ($nickname, $password) {
+        $this->nickname = $nickname;
+        $this->password = $password;
+    }
+
+    /**
+     * Logs in to FetLife as the given user.
+     */
+    function logIn () {
+        $this->connection = new FetLifeConnection($this);
+        $response = $this->connection->logIn();
+        $this->id = $this->connection->findUserId($response['body']);
+    }
+
+    /**
+     * Translates a FetLife user's nickname to their numeric ID.
+     */
+    function getUserIdByNickname ($nickname = NULL) {
+        if (!$nickname) {
+            $nickname = $this->nickname;
+        }
+
+        if ($nickname === $this->nickname && !empty($this->id)) {
+            return $this->id;
+        } else {
+            $result    = $this->connection->doHttpGet("/$nickname");
+            $url_parts = parse_url($result['curl_info']['url']);
+            return end(explode('/', $url_parts['path']));
+        }
+    }
+}
+
+/**
+ * Profile information for a FetLife User.
+ */
+class FetLifeUserProfile extends FetLifeUser {
+    var $avatar_url;
+    var $age;
+    // etc...
+}
+
+class FetLifeStatus extends FetLife {
+    const MAX_STATUS_LENGTH = 200; // Character count.
+    var $notice_text;
+
+    private function prepare ($str) {
     }
 }
