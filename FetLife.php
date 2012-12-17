@@ -237,6 +237,72 @@ class FetLifeUser extends FetLife {
         $result = $this->connection->doHttpGet("/users/$id");
         return $this->connection->findUserNickname($result['body']);
     }
+
+    /**
+     * Retrieves a user's friend list.
+     *
+     * @param id
+     * @param int $pages How many pages to retrieve. By default, retrieves all (0).
+     * @return array $friends Array of DOMDocument::DOMNode from FetLife's "user_in_list" elements.
+     */
+    function getFriendsOf ($id = NULL, $pages = 0) {
+        if (isset($this->id) && !$id) {
+            $id = $this->id;
+        }
+
+        // Store the friends.
+        $friends = array();
+
+        // Retrieve the first page.
+        $cur_page = 1;
+        $x = $this->loadFriendsPage($id, $page);
+
+        $doc = new DOMDocument();
+        @$doc->loadHTML($x['body']);
+        $xpath = new DOMXPath($doc);
+
+        // How many pages?
+        $result = $xpath->query('//a[@class="next_page"]/../a'); // get all pagination elements
+        if (0 === $result->length) {
+            // This is the first (and last) page.
+            $num_pages = 1;
+        } else {
+            $num_pages = (int) $result->item($result->length - 2)->textContent;
+            // If retrieving all pages, set the page retrieval limit to the last existing page.
+            if (0 === $pages) {
+                $pages = $num_pages;
+            }
+        }
+
+        // Find and store friends on this page.
+        $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
+        foreach ($entries as $entry) {
+            $friends[] = $entry;
+        }
+
+        // Find and store friends on remainder of pages.
+        while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
+            $cur_page++; // increment to get to next page
+            $x = $this->loadFriendsPage($id, $cur_page);
+            @$doc->loadHTML($x['body']);
+            // Find and store friends on this page.
+            $xpath = new DOMXPath($doc);
+            $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
+            foreach ($entries as $entry) {
+                $friends[] = $entry;
+            }
+        }
+
+        return $friends;
+    }
+
+    private function loadFriendsPage ($id, $page) {
+        $url = "/users/$id/friends";
+        if ($page) {
+            $url .= "?page=$page";
+        }
+        return $this->connection->doHttpGet($url);
+    }
 }
 
 /**
