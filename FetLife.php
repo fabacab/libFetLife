@@ -41,6 +41,7 @@ class FetLifeConnection extends FetLife {
     var $usr;        // Associated FetLifeUser object.
     var $cookiejar;  // File path to cookies for this user's connection.
     var $csrf_token; // The current CSRF authenticity token to use for doing HTTP POSTs.
+    var $cur_page;   // Source code of the last page retrieved.
 
     function __construct ($usr) {
         $this->usr = $usr;
@@ -120,7 +121,7 @@ class FetLifeConnection extends FetLife {
         curl_setopt($ch, CURLINFO_HEADER_OUT, true);
 
         $r = array();
-        $r['body'] = curl_exec($ch); // Grab FetLife response body.
+        $this->cur_page = $r['body'] = curl_exec($ch); // Grab FetLife response body.
         $this->setCsrfToken($this->findCsrfToken($r['body'])); // Update on each request.
         $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
@@ -188,6 +189,7 @@ class FetLifeUser extends FetLife {
     var $id;
     var $email_address;
     var $connection; // A FetLifeConnection object to handle network requests.
+    var $friends;    // An array (eventually, of FetLifeUserProfile objects).
 
     function __construct ($nickname, $password) {
         $this->nickname = $nickname;
@@ -243,7 +245,7 @@ class FetLifeUser extends FetLife {
      *
      * @param id
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
-     * @return array $friends Array of DOMDocument::DOMNode from FetLife's "user_in_list" elements.
+     * @return array $friends Array of DOMElement from FetLife's "user_in_list" elements.
      */
     function getFriendsOf ($id = NULL, $pages = 0) {
         if (isset($this->id) && !$id) {
