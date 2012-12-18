@@ -181,7 +181,7 @@ class FetLifeConnection extends FetLife {
 }
 
 /**
- * A FetLife User.
+ * A FetLife User. This class mimics the logged-in user, performing actions, etc.
  */
 class FetLifeUser extends FetLife {
     var $nickname;
@@ -243,7 +243,7 @@ class FetLifeUser extends FetLife {
     /**
      * Retrieves a user's friend list.
      *
-     * @param id
+     * @param int $id User ID of the user whose friends list to search. By default, the logged-in user.
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
      * @return array $friends Array of DOMElement from FetLife's "user_in_list" elements.
      */
@@ -251,60 +251,105 @@ class FetLifeUser extends FetLife {
         if (isset($this->id) && !$id) {
             $id = $this->id;
         }
+        return $this->getUsersInListing("/users/$id/friends", $pages);
+    }
 
-        // Store the friends.
-        $friends = array();
+    /**
+     * Retrieves list of group members.
+     *
+     * @param int $group_id The ID of the group.
+     * @param int $pages How many pages to retrieve. By default, retrieve all (0).
+     * @return array $members Array of DOMElement objects from the group's "user_in_list" elements.
+     */
+    function getMembersOfGroup ($group_id, $pages = 0) {
+        return $this->getUsersInListing("/groups/$group_id/group_memberships", $pages);
+    }
 
-        // Retrieve the first page.
-        $cur_page = 1;
-        $x = $this->loadFriendsPage($id, $page);
+    function getKinkstersGoingToEvent($event_id, $pages = 0) {
+        return $this->getUsersInListing("/events/$event_id/rsvps", $pages);
+    }
+    function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
+        return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
+    }
 
-        $doc = new DOMDocument();
-        @$doc->loadHTML($x['body']);
+    /**
+     * Loads a specific page from a paginated list.
+     *
+     * @param string $url The URL of the paginated set.
+     * @param int $page The number of the page in the set.
+     * @return array The result of the HTTP request.
+     * @see FetLifeConnection::doHttpRequest
+     */
+    private function loadPage ($url, $page = 1) {
+        if ($page > 1) {
+            $url .= "?page=$page";
+        }
+        return $this->connection->doHttpGet($url);
+    }
+
+    /**
+     * Counts number of pages in a paginated listing.
+     *
+     * @param DOMDocument $doc The page to look for paginated numbering in.
+     * @return int Number of pages.
+     */
+    private function countPaginatedPages ($doc) {
         $xpath = new DOMXPath($doc);
-
-        // How many pages?
         $result = $xpath->query('//a[@class="next_page"]/../a'); // get all pagination elements
         if (0 === $result->length) {
             // This is the first (and last) page.
             $num_pages = 1;
         } else {
             $num_pages = (int) $result->item($result->length - 2)->textContent;
-            // If retrieving all pages, set the page retrieval limit to the last existing page.
-            if (0 === $pages) {
-                $pages = $num_pages;
-            }
+        }
+        return $num_pages;
+    }
+
+    /**
+     * Iterates through a listing of users, such as a friends list or group membership list.
+     *
+     * @param string $url_base The base URL for the listing pages.
+     * @param int $pages The number of pages to iterate through.
+     * @return array Array of DOMElement objects from the listing's "user_in_list" elements.
+     */
+    private function getUsersInListing ($url_base, $pages) {
+        // Retrieve the first page.
+        $cur_page = 1;
+        $x = $this->loadPage($url_base, $cur_page);
+
+        $doc = new DOMDocument();
+        @$doc->loadHTML($x['body']);
+
+        $num_pages = $this->countPaginatedPages($doc);
+        // If retrieving all pages, set the page retrieval limit to the last existing page.
+        if (0 === $pages) {
+            $pages = $num_pages;
         }
 
-        // Find and store friends on this page.
+        // Find and store users on this page.
+        $users = array();
+        $xpath = new DOMXPath($doc);
         $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
         foreach ($entries as $entry) {
-            $friends[] = $entry;
+            $users[] = $entry;
         }
 
-        // Find and store friends on remainder of pages.
+        // Find and store users on remainder of pages.
         while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
             $cur_page++; // increment to get to next page
-            $x = $this->loadFriendsPage($id, $cur_page);
+            $x = $this->loadPage($url_base, $cur_page);
             @$doc->loadHTML($x['body']);
             // Find and store friends on this page.
             $xpath = new DOMXPath($doc);
             $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
             foreach ($entries as $entry) {
-                $friends[] = $entry;
+                $users[] = $entry;
             }
         }
 
-        return $friends;
+        return $users;
     }
 
-    private function loadFriendsPage ($id, $page) {
-        $url = "/users/$id/friends";
-        if ($page) {
-            $url .= "?page=$page";
-        }
-        return $this->connection->doHttpGet($url);
-    }
 }
 
 /**
