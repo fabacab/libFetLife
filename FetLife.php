@@ -98,6 +98,7 @@ class FetLifeConnection extends FetLife {
     /**
      * Generic HTTP request function.
      *
+     * @param string $url_path The request URI to send to FetLife. E.g., "/users/1".
      * @param string $data Parameters to send in the HTTP request. Recommended to use http_build_query().
      * @param string $method The HTTP method to use, like GET (default), POST, etc.
      * @return array $r The result of the HTTP request.
