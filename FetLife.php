@@ -266,6 +266,9 @@ class FetLifeUser extends FetLife {
         return $this->getUsersInListing("/groups/$group_id/group_memberships", $pages);
     }
 
+    function getKinkstersWithFetish($fetish_id, $pages = 0) {
+        return $this->getUsersInListing("/fetishes/$fetish_id/kinksters", $pages);
+    }
     function getKinkstersGoingToEvent($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps", $pages);
     }
