@@ -31,7 +31,7 @@ ini_set('error_log', '/tmp/php_errors.log');
  * Base class.
  */
 class FetLife {
-    static $base_url = 'https://fetlife.com'; // No trailing slash!
+    const base_url = 'https://fetlife.com'; // No trailing slash!
 }
 
 /**
@@ -72,7 +72,7 @@ class FetLifeConnection extends FetLife {
      */
     public function logIn () {
         // Grab FetLife login page HTML to get CSRF token.
-        $ch = curl_init(parent::$base_url . '/login');
+        $ch = curl_init(self::base_url . '/login');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         if ($this->proxy_url) {
             curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
@@ -120,7 +120,7 @@ class FetLifeConnection extends FetLife {
         if (!empty($data) && 'GET' === $method) {
             $url_path += "?$data";
         }
-        $ch = curl_init(parent::$base_url . $url_path);
+        $ch = curl_init(self::base_url . $url_path);
         if ('POST' === $method) {
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
