@@ -42,6 +42,8 @@ class FetLifeConnection extends FetLife {
     var $cookiejar;  // File path to cookies for this user's connection.
     var $csrf_token; // The current CSRF authenticity token to use for doing HTTP POSTs.
     var $cur_page;   // Source code of the last page retrieved.
+    var $proxy_url;  // The url of the proxy to use.
+    var $proxy_type; // The type of the proxy to use.
 
     function __construct ($usr) {
         $this->usr = $usr;
@@ -56,6 +58,12 @@ class FetLifeConnection extends FetLife {
         }
     }
 
+    // A flag to pass to curl_setopt()'s proxy settings.
+    public function setProxy ($url, $type = CURLPROXY_HTTP) {
+        $this->proxy_url = $url;
+        $this->proxy_type = $type;
+    }
+
     /**
      * Log in to FetLife.
      *
@@ -66,6 +74,10 @@ class FetLifeConnection extends FetLife {
         // Grab FetLife login page HTML to get CSRF token.
         $ch = curl_init(parent::$base_url . '/login');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        if ($this->proxy_url) {
+            curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
+            curl_setopt($ch, CURLOPT_PROXYTYPE, $this->proxy_type);
+        }
         $this->setCsrfToken($this->findCsrfToken(curl_exec($ch)));
         curl_close($ch);
 
@@ -120,6 +132,10 @@ class FetLifeConnection extends FetLife {
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+        if ($this->proxy_url) {
+            curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
+            curl_setopt($ch, CURLOPT_PROXYTYPE, $this->proxy_type);
+        }
 
         $r = array();
         $this->cur_page = $r['body'] = curl_exec($ch); // Grab FetLife response body.
@@ -195,6 +211,7 @@ class FetLifeUser extends FetLife {
     function __construct ($nickname, $password) {
         $this->nickname = $nickname;
         $this->password = $password;
+        $this->connection = new FetLifeConnection($this);
     }
 
     /**
@@ -203,7 +220,6 @@ class FetLifeUser extends FetLife {
      * @return bool True if login was successful, false otherwise.
      */
     function logIn () {
-        $this->connection = new FetLifeConnection($this);
         $response = $this->connection->logIn();
         if ($this->id = $this->connection->findUserId($response['body'])) {
             return true;
