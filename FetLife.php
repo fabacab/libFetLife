@@ -206,7 +206,7 @@ class FetLifeUser extends FetLife {
     var $id;
     var $email_address;
     var $connection; // A FetLifeConnection object to handle network requests.
-    var $friends;    // An array (eventually, of FetLifeUserProfile objects).
+    var $friends;    // An array (eventually, of FetLifeProfile objects).
 
     function __construct ($nickname, $password) {
         $this->nickname = $nickname;
@@ -260,15 +260,27 @@ class FetLifeUser extends FetLife {
     /**
      * Retrieves a user's friend list.
      *
-     * @param int $id User ID of the user whose friends list to search. By default, the logged-in user.
+     * @param mixed $who User whose friends list to search. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
      * @return array $friends Array of DOMElement from FetLife's "user_in_list" elements.
      */
-    function getFriendsOf ($id = NULL, $pages = 0) {
-        if (isset($this->id) && !$id) {
-            $id = $this->id;
+    function getFriendsOf ($who = NULL, $pages = 0) {
+        // If whose friends was never specified, assume our own.
+        if (isset($this->id) && !$who) {
+            return $this->getUsersInListing("/users/{$this->id}/friends", $pages);
+        } else {
+            // If "$who" was specified as a string,
+            switch (gettype($who)) {
+                case 'string':
+                    // it's a nickname, so get the right ID
+                    $who = $this->getUserIdByNickname($who);
+                    // Fall through!
+                case 'integer':
+                default:
+                    // and then use that ID value.
+                    return $this->getUsersInListing("/users/$who/friends", $pages);
+            }
         }
-        return $this->getUsersInListing("/users/$id/friends", $pages);
     }
 
     /**
@@ -290,6 +302,17 @@ class FetLifeUser extends FetLife {
     }
     function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
+    }
+
+    /**
+     * Retrieves list of events.
+     *
+     * TODO: Create an automated way of translating place names to place URL strings.
+     * @param string $loc_str The "Place" URL part. For instance, "cities/5898" is "Baltimore, Maryland, United States".
+     * @param int $pages How many pages to retrieve. By default, retrieve all (0).
+     */
+    function getUpcomingEventsInLocation($loc_str, $pages = 0) {
+        return $this->getEventsInListing("/$loc_str/events", $pages);
     }
 
     /**
@@ -330,9 +353,53 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url_base The base URL for the listing pages.
      * @param int $pages The number of pages to iterate through.
-     * @return array Array of DOMElement objects from the listing's "user_in_list" elements.
+     * @return array Array of FetLifeProfile objects from the listing's "user_in_list" elements.
      */
     private function getUsersInListing ($url_base, $pages) {
+        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages);
+        $ret = array();
+        foreach ($items as $v) {
+            $u = array();
+            $u['nickname'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
+            $u['avatar_url'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
+            $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+            $u['id'] = end(explode('/', $u['url']));
+            $m = array();
+            preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $v->getElementsByTagName('span')->item(1)->nodeValue, $m);
+            list(, $u['age'], $u['gender'], $u['role']) = $m;
+            $u['location'] = $v->getElementsByTagName('em')->item(0)->nodeValue;
+            $ret[] = new FetLifeProfile($u);
+        }
+        return $ret;
+    }
+
+    /**
+     * Iterates through a set of events from a given multi-page listing.
+     *
+     * @param string $url_base The base URL for the listing pages.
+     * @param int $pages The number of pages to iterate through.
+     * @return array Array of FetLifeEvent objects from the listed set.
+     */
+    private function getEventsInListing ($url_base, $pages) {
+        $items = $this->getItemsInListing('//*[contains(@class, "event_listings")]/li', $url_base, $pages);
+        $ret = array();
+        foreach ($items as $v) {
+            $e = array();
+            $e['title']      = $v->getElementsByTagName('a')->item(0)->nodeValue;
+            $e['url']        = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+            $e['id']         = end(explode('/', $e['url']));
+            $e['dt_start']   = $v->getElementsByTagName('div')->item(1)->nodeValue;
+            $e['venue_name'] = $v->getElementsByTagName('div')->item(2)->nodeValue;
+            $ret[] = new FetLifeEvent($e);
+        }
+
+        return $ret;
+    }
+
+    /**
+     * Iterates through a multi-page listing of items that match an XPath query.
+     */
+    private function getItemsInListing ($xpath, $url_base, $pages) {
         // Retrieve the first page.
         $cur_page = 1;
         $x = $this->loadPage($url_base, $cur_page);
@@ -346,30 +413,29 @@ class FetLifeUser extends FetLife {
             $pages = $num_pages;
         }
 
-        // Find and store users on this page.
-        $users = array();
-        $xpath = new DOMXPath($doc);
-        $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
+        // Find and store items on this page.
+        $items = array();
+        $z = new DOMXPath($doc);
+        $entries = $z->query($xpath);
         foreach ($entries as $entry) {
-            $users[] = $entry;
+            $items[] = $entry;
         }
 
-        // Find and store users on remainder of pages.
+        // Find and store items on remainder of pages.
         while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
             $cur_page++; // increment to get to next page
             $x = $this->loadPage($url_base, $cur_page);
             @$doc->loadHTML($x['body']);
             // Find and store friends on this page.
-            $xpath = new DOMXPath($doc);
-            $entries = $xpath->query('//*[contains(@class, "user_in_list")]');
+            $z = new DOMXPath($doc);
+            $entries = $z->query($xpath);
             foreach ($entries as $entry) {
-                $users[] = $entry;
+                $items[] = $entry;
             }
         }
 
-        return $users;
+        return $items;
     }
-
 }
 
 /**
@@ -393,13 +459,33 @@ class FetLifeComment extends FetLifeContent {
 
 /**
  * Profile information for a FetLife User.
- *
- * TODO: Figure out if this should actually extend FetLifeContent instead.
  */
-class FetLifeUserProfile extends FetLifeUser {
-    var $avatar_url;
+class FetLifeProfile extends FetLifeContent {
     var $age;
-    // etc...
+    var $avatar_url;
+    var $gender;
+    var $id;
+    var $location; // TODO: Split this up?
+    var $nickname;
+    var $role;
+    // TODO: etc...
+
+    function FetLifeProfile ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    // Returns the server-relative URL of the profile.
+    function getUrl () {
+        return '/users/' . $this->id;
+    }
+
+    // Returns the fully-qualified URL of the profile.
+    function getPermalink () {
+        return self::base_url . $this->getUrl();
+    }
 }
 
 /**
@@ -420,6 +506,7 @@ class FetLifeStatus extends FetLifeContent {
  */
 class FetLifeEvent extends FetLifeContent {
     // See event creation form at https://fetlife.com/events/new
+    var $id;
     var $title;
     var $tagline;
     var $dt_start;
@@ -429,7 +516,29 @@ class FetLifeEvent extends FetLifeContent {
     var $cost;
     var $dress_code;
     var $description;
-    var $created_by; // A FetLifeUser who created the event.
-    var $rsvp_yes;   // An array of FetLifeUser objects who are RSVP'ed "Yes."
-    var $rsvp_maybe; // An array of FetLifeUser objects who are RSVP'ed "Maybe."
+    var $created_by; // A FetLife user who created the event.
+    var $rsvp_yes;   // An array of FetLife user objects who are RSVP'ed "Yes."
+    var $rsvp_maybe; // An array of FetLife user objects who are RSVP'ed "Maybe."
+
+    /**
+     * Creates a new FetLifeEvent object.
+     *
+     * @param array $arr_param Associative array of member => value pairs.
+     */
+    function FetLifeEvent ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    // Returns the server-relative URL of the event.
+    function getUrl () {
+        return '/events/' . $this->id;
+    }
+
+    // Returns the fully-qualified URL of the event.
+    function getPermalink () {
+        return self::base_url . $this->getUrl();
+    }
 }
