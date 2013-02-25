@@ -606,13 +606,14 @@ class FetLifeEvent extends FetLifeContent {
         // TODO: Save an HTML representation of the description, then make a getter that returns a text-only version.
         //       See also http://www.php.net/manual/en/class.domelement.php#101243
         $ret['description'] = $this->usr->doXPathQuery('//*[contains(@class, "description")]', $doc)->item(0)->nodeValue;
-        $creator_link = $this->usr->doXPathQuery('//h3[text()="Created by"]/following-sibling::ul//a', $doc)->item(0);
-        $ret['created_by'] = new FetLifeProfile(array(
-            'url' => $creator_link->attributes->getNamedItem('href')->value,
-            'id' => end(explode('/', $creator_link->attributes->getNamedItem('href')->value)),
-            'avatar_url' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
-            'nickname' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
-        ));
+        if ($creator_link = $this->usr->doXPathQuery('//h3[text()="Created by"]/following-sibling::ul//a', $doc)->item(0)) {
+            $ret['created_by'] = new FetLifeProfile(array(
+                'url' => $creator_link->attributes->getNamedItem('href')->value,
+                'id' => end(explode('/', $creator_link->attributes->getNamedItem('href')->value)),
+                'avatar_url' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
+                'nickname' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
+            ));
+        }
         return $ret;
     }
 }
