@@ -607,7 +607,9 @@ class FetLifeEvent extends FetLifeContent {
         if ($location = $this->usr->doXPathQuery('//*[contains(@itemprop, "location")]', $doc)->item(0)) {
             $ret['adr']['country-name'] = $location->getElementsByTagName('meta')->item(0)->attributes->getNamedItem('content')->value;
             $ret['adr']['region'] = $location->getElementsByTagName('meta')->item(1)->attributes->getNamedItem('content')->value;
-            $ret['adr']['locality'] = $location->getElementsByTagName('meta')->item(2)->attributes->getNamedItem('content')->value;
+            if ($locality = $location->getElementsByTagName('meta')->item(2)) {
+                $ret['adr']['locality'] = $locality->attributes->getNamedItem('content')->value;
+            }
         }
         $ret['cost'] = $this->usr->doXPathQuery('//th[text()="Cost:"]/../td', $doc)->item(0)->nodeValue;
         $ret['dress_code'] = $this->usr->doXPathQuery('//th[text()="Dress code:"]/../td', $doc)->item(0)->textContent;
