@@ -305,13 +305,28 @@ class FetLifeUser extends FetLife {
     }
 
     /**
+     * Gets a single event.
+     *
+     * @param int $id The event ID to fetch.
+     * @param mixed $populate True to populate all data, integer to retrieve that number of RSVP pages, false (default) to do nothing.
+     */
+    function getEventById ($id, $populate = false) {
+        $event = new FetLifeEvent(array(
+            'usr' => $this,
+            'id' => $id,
+        ));
+        $event->populate($populate);
+        return $event;
+    }
+
+    /**
      * Retrieves list of events.
      *
      * TODO: Create an automated way of translating place names to place URL strings.
      * @param string $loc_str The "Place" URL part. For instance, "cities/5898" is "Baltimore, Maryland, United States".
      * @param int $pages How many pages to retrieve. By default, retrieve all (0).
      */
-    function getUpcomingEventsInLocation($loc_str, $pages = 0) {
+    function getUpcomingEventsInLocation ($loc_str, $pages = 0) {
         return $this->getEventsInListing("/$loc_str/events", $pages);
     }
 
@@ -337,8 +352,7 @@ class FetLifeUser extends FetLife {
      * @return int Number of pages.
      */
     private function countPaginatedPages ($doc) {
-        $xpath = new DOMXPath($doc);
-        $result = $xpath->query('//a[@class="next_page"]/../a'); // get all pagination elements
+        $result = $this->doXPathQuery('//a[@class="next_page"]/../a', $doc); // get all pagination elements
         if (0 === $result->length) {
             // This is the first (and last) page.
             $num_pages = 1;
@@ -346,6 +360,12 @@ class FetLifeUser extends FetLife {
             $num_pages = (int) $result->item($result->length - 2)->textContent;
         }
         return $num_pages;
+    }
+
+    // Helper function to return the results of an XPath query.
+    public function doXPathQuery ($x, $doc) {
+        $xpath = new DOMXPath($doc);
+        return $xpath->query($x);
     }
 
     /**
@@ -388,8 +408,12 @@ class FetLifeUser extends FetLife {
             $e['title']      = $v->getElementsByTagName('a')->item(0)->nodeValue;
             $e['url']        = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $e['id']         = end(explode('/', $e['url']));
-            $e['dt_start']   = $v->getElementsByTagName('div')->item(1)->nodeValue;
+            // Suppress this warning because we're manually appending UTC timezone marker.
+            $start_timestamp = @strtotime($v->getElementsByTagName('div')->item(1)->nodeValue . ' UTC');
+            $e['dtstart']    = ($start_timestamp) ?
+                gmstrftime('%Y-%m-%d %H:%MZ', $start_timestamp) : $v->getElementsByTagName('div')->item(1)->nodeValue;
             $e['venue_name'] = $v->getElementsByTagName('div')->item(2)->nodeValue;
+            $e['usr']        = $this;
             $ret[] = new FetLifeEvent($e);
         }
 
@@ -415,8 +439,7 @@ class FetLifeUser extends FetLife {
 
         // Find and store items on this page.
         $items = array();
-        $z = new DOMXPath($doc);
-        $entries = $z->query($xpath);
+        $entries = $this->doXPathQuery($xpath, $doc);
         foreach ($entries as $entry) {
             $items[] = $entry;
         }
@@ -427,8 +450,7 @@ class FetLifeUser extends FetLife {
             $x = $this->loadPage($url_base, $cur_page);
             @$doc->loadHTML($x['body']);
             // Find and store friends on this page.
-            $z = new DOMXPath($doc);
-            $entries = $z->query($xpath);
+            $entries = $this->doXPathQuery($xpath, $doc);
             foreach ($entries as $entry) {
                 $items[] = $entry;
             }
@@ -506,19 +528,21 @@ class FetLifeStatus extends FetLifeContent {
  */
 class FetLifeEvent extends FetLifeContent {
     // See event creation form at https://fetlife.com/events/new
+    var $usr;        // Associated FetLifeUser object.
     var $id;
     var $title;
     var $tagline;
-    var $dt_start;
-    var $dt_end;
-    var $venue_name;
-    var $venue_address;
+    var $dtstart;
+    var $dtend;
+    var $venue_name;    // Text of the venue name, if provided.
+    var $venue_address; // Text of the venue address, if provided.
+    var $adr = array(); // Array of elements matching adr microformat.
     var $cost;
     var $dress_code;
     var $description;
-    var $created_by; // A FetLife user who created the event.
-    var $rsvp_yes;   // An array of FetLife user objects who are RSVP'ed "Yes."
-    var $rsvp_maybe; // An array of FetLife user objects who are RSVP'ed "Maybe."
+    var $created_by; // A FetLifeProfile who created the event.
+    var $going;      // An array of FetLifeProfile objects who are RSVP'ed "Yes."
+    var $maybegoing; // An array of FetLifeProfile objects who are RSVP'ed "Maybe."
 
     /**
      * Creates a new FetLifeEvent object.
@@ -540,5 +564,55 @@ class FetLifeEvent extends FetLifeContent {
     // Returns the fully-qualified URL of the event.
     function getPermalink () {
         return self::base_url . $this->getUrl();
+    }
+
+    /**
+     * Fetches and fills the remainder of the Event's data.
+     *
+     * This is public because it'll take a long time and so it is recommended to
+     * do so only when you need specific data.
+     *
+     * @param mixed $rsvp_pages Number of RSVP pages to get, if any. Default is false, which means attendee lists won't be fetched. Passing true means "all".
+     */
+    public function populate ($rsvp_pages = false) {
+        $resp = $this->usr->connection->doHttpGet($this->getUrl());
+        $data = $this->parseEventHtml($resp['body']);
+        foreach ($data as $k => $v) {
+            $this->$k = $v;
+        }
+        if ($rsvp_pages) {
+            $rsvp_pages = (true === $rsvp_pages) ? 0 : $rsvp_pages; // Privately, 0 means "all".
+            $this->going   = $this->usr->getKinkstersGoingToEvent($this->id, $rsvp_pages);
+            $this->maybegoing = $this->usr->getKinkstersMaybeGoingToEvent($this->id, $rsvp_pages);
+        }
+    }
+
+    // Given some HTML of a FetLife event page, returns an array of its data.
+    private function parseEventHtml ($html) {
+        $doc = new DOMDocument();
+        @$doc->loadHTML($html);
+        $ret = array();
+        $ret['tagline'] = $this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0)->nodeValue;
+        $ret['dtstart'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "startDate")]/@content', $doc)->item(0)->nodeValue;
+        $ret['dtend'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "endDate")]/@content', $doc)->item(0)->nodeValue;
+        $ret['venue_address'] = $this->usr->doXPathQuery('//th/*[text()="Location:"]/../../td/*[contains(@class, "s")]/text()[1]', $doc)->item(0)->nodeValue;
+        if ($location = $this->usr->doXPathQuery('//*[contains(@itemprop, "location")]', $doc)->item(0)) {
+            $ret['adr']['country-name'] = $location->getElementsByTagName('meta')->item(0)->attributes->getNamedItem('content')->value;
+            $ret['adr']['region'] = $location->getElementsByTagName('meta')->item(1)->attributes->getNamedItem('content')->value;
+            $ret['adr']['locality'] = $location->getElementsByTagName('meta')->item(2)->attributes->getNamedItem('content')->value;
+        }
+        $ret['cost'] = $this->usr->doXPathQuery('//th[text()="Cost:"]/../td', $doc)->item(0)->nodeValue;
+        $ret['dress_code'] = $this->usr->doXPathQuery('//th[text()="Dress code:"]/../td', $doc)->item(0)->textContent;
+        // TODO: Save an HTML representation of the description, then make a getter that returns a text-only version.
+        //       See also http://www.php.net/manual/en/class.domelement.php#101243
+        $ret['description'] = $this->usr->doXPathQuery('//*[contains(@class, "description")]', $doc)->item(0)->nodeValue;
+        $creator_link = $this->usr->doXPathQuery('//h3[text()="Created by"]/following-sibling::ul//a', $doc)->item(0);
+        $ret['created_by'] = new FetLifeProfile(array(
+            'url' => $creator_link->attributes->getNamedItem('href')->value,
+            'id' => end(explode('/', $creator_link->attributes->getNamedItem('href')->value)),
+            'avatar_url' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
+            'nickname' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
+        ));
+        return $ret;
     }
 }

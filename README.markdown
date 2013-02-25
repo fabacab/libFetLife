@@ -21,7 +21,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     print $FL->getUserIdByNickname('JohnBaku'); // prints "1"
     print $FL->getUserNicknameById('1254');     // prints "maymay"
 
-    // Get a user's friends list as an array.
+    // Get a user's friends list as an array of FetLifeProfile objects.
     $friends = $FL->getFriendsOf('maymay');
     // A numeric FetLife user ID also works.
     $friends = $FL->getFriendsOf(1254);
@@ -33,6 +33,41 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     $kinksters = $FL->getKinkstersWithFetish('193'); // "Corsets"
     $attendees = $FL->getKinkstersGoingToEvent('149379');
     $maybes = $FL->getKinkstersMaybeGoingToEvent('149379', 2); // Only 2 pages.
+
+    // You can also fetch arrays of events.
+    $events = $FL->getUpcomingEventsInLocation('cities/5898'); // Get all events in Balitmore, MD.
+    // Or get just the first couple pages.
+    $events_partial = $FL->getUpcomingEventsInLocation('cities/5898', 2); // Only 2 pages.
+
+    // FetLifeEvent objects are instantiated from minimal data.
+    // To fill them out, call their populate() method.
+    $events[0]->populate(); // Flesh out data from first event fetched.
+    // RSVP lists take a while to fetch, but you can get them, too.
+    $events[1]->populate(2); // Fetch first 2 pages of RSVP responses.
+    $events[2]->populate(true); // Or fetch all pages of RSVP responses.
+
+    // Now we have access to some basic event data.
+    print $events[2]->getPermalink();
+    print $events[2]->venue_name;
+    print $events[2]->dress_code;
+    // etc...
+
+    // Attendee lists are arrays of FetLifeProfile objects, same as friends lists.
+    foreach ($events[2]->going as $profile) {
+        print $profile->nickname; // FetLife names of people who RSVP'd "Going."
+    }
+    $i = 0;
+    $y = 0;
+    foreach ($events[2]->maybegoing as $profile) {
+        if ('Switch' === $profile->role) { $i++; }
+        if ('M' === $profile->gender) { $y++; }
+    }
+    print "There are $i Switches and $y male-identified people maybe going to {$events[2]->title}.";
+
+    // If you already know the event ID, you can just fetch that event.
+    $event = $FL->getEventById(151424);
+    // "Populate" behavior works the same way.
+    $event = $FL->getEventById(151424, true); // Get all availble event data.
 
 [Patches welcome](https://github.com/meitar/libFetLife/issues/new).
 
