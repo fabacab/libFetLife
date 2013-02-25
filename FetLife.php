@@ -504,9 +504,17 @@ class FetLifeProfile extends FetLifeContent {
         return '/users/' . $this->id;
     }
 
-    // Returns the fully-qualified URL of the profile.
-    function getPermalink () {
-        return self::base_url . $this->getUrl();
+    /**
+     * Returns the fully-qualified URL of the profile.
+     *
+     * @param bool $named If true, returns the canonical URL by nickname.
+     */
+    function getPermalink ($named = false) {
+        if ($named) {
+            return self::base_url . "/{$this->nickname}";
+        } else {
+            return self::base_url . $this->getUrl();
+        }
     }
 }
 
