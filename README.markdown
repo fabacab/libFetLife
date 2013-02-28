@@ -73,6 +73,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
 
 ## Projects that use libFetLife
 
+* [FetLife iCalendar](https://github.com/meitar/fetlife-icalendar/)
 * [FetLife Export](https://github.com/meitar/fetlife-export/)
 * [FetLife Bridge](https://github.com/meitar/fetlife-bridge/)
 
