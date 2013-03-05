@@ -19,7 +19,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
 
     // Query FetLife for information about other users.
     print $FL->getUserIdByNickname('JohnBaku'); // prints "1"
-    print $FL->getUserNicknameById('1254');     // prints "maymay"
+    print $FL->getUserNicknameById(1254);       // prints "maymay"
 
     // Get a user's friends list as an array of FetLifeProfile objects.
     $friends = $FL->getFriendsOf('maymay');
@@ -29,10 +29,10 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     $friends_partial = $FL->getFriendsOf('maymay', 3); // Only first 3 pages.
 
     // Numerous other functions also return arrays, with optional page limit.
-    $members = $FL->getMembersOfGroup('11708'); // "Kink On Tap"
-    $kinksters = $FL->getKinkstersWithFetish('193'); // "Corsets"
-    $attendees = $FL->getKinkstersGoingToEvent('149379');
-    $maybes = $FL->getKinkstersMaybeGoingToEvent('149379', 2); // Only 2 pages.
+    $members = $FL->getMembersOfGroup(11708); // "Kink On Tap"
+    $kinksters = $FL->getKinkstersWithFetish(193); // "Corsets"
+    $attendees = $FL->getKinkstersGoingToEvent(149379);
+    $maybes = $FL->getKinkstersMaybeGoingToEvent(149379, 2); // Only 2 pages.
 
     // You can also fetch arrays of events.
     $events = $FL->getUpcomingEventsInLocation('cities/5898'); // Get all events in Balitmore, MD.
