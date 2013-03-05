@@ -305,6 +305,7 @@ class FetLifeUser extends FetLife {
         foreach ($items as $v) {
             $x = array();
             $x['title']      = $v->getElementsByTagName('h2')->item(0)->nodeValue;
+            $x['category']   = trim($v->getElementsByTagName('strong')->item(0)->nodeValue);
             $author_url      = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $author_id       = (int) end(explode('/', $author_url));
             $author_avatar   = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
