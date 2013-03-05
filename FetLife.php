@@ -262,25 +262,65 @@ class FetLifeUser extends FetLife {
      *
      * @param mixed $who User whose friends list to search. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
-     * @return array $friends Array of DOMElement from FetLife's "user_in_list" elements.
+     * @return array $friends Array of FetLifeProfile objects.
      */
     function getFriendsOf ($who = NULL, $pages = 0) {
-        // If whose friends was never specified, assume our own.
-        if (isset($this->id) && !$who) {
-            return $this->getUsersInListing("/users/{$this->id}/friends", $pages);
-        } else {
-            // If "$who" was specified as a string,
-            switch (gettype($who)) {
-                case 'string':
-                    // it's a nickname, so get the right ID
-                    $who = $this->getUserIdByNickname($who);
-                    // Fall through!
-                case 'integer':
-                default:
-                    // and then use that ID value.
-                    return $this->getUsersInListing("/users/$who/friends", $pages);
-            }
+        $id = $this->resolveWho($who);
+        return $this->getUsersInListing("/users/$id/friends", $pages);
+    }
+
+    /**
+     * Helper function to resolve "$who" we're dealing with.
+     *
+     * @param mixed $who The entity to resolve. If a string, assumes a nickname and resolves to an ID. If an integer, uses that.
+     * @return int The FetLife user's numeric ID.
+     */
+    private function resolveWho ($who) {
+        switch (gettype($who)) {
+            case 'NULL':
+                return $this->id;
+            case 'integer':
+                return $who;
+            case 'string':
+                // Double-check that an integer wasn't passed a string.
+                if (ctype_digit($who)) {
+                    return (int)$who; // If it was, coerce type appropriately.
+                } else {
+                    return $this->getUserIdByNickname($who);
+                }
         }
+    }
+
+    /**
+     * Retrieves a user's Writings.
+     *
+     * @param mixed $who User whose FetLife Writings to fetch. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
+     * @param int $pages How many pages to retrieve. By default, retrieves all (0).
+     * @return array $writings Array of FetLifeWritings objects.
+     */
+    function getWritingsOf ($who = NULL, $pages = 0) {
+        $id = $this->resolveWho($who);
+        $items = $this->getItemsInListing('//article', "/users/$id/posts", $pages);
+        $ret = array();
+        foreach ($items as $v) {
+            $x = array();
+            $x['title']      = $v->getElementsByTagName('h2')->item(0)->nodeValue;
+            $author_url      = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+            $author_id       = (int) end(explode('/', $author_url));
+            $author_avatar   = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
+            $x['author']     = new FetLifeProfile(array(
+                'id' => $author_id,
+                'avatar_url' => $author_avatar
+            ));
+            $x['url']        = $v->getElementsByTagName('a')->item(1)->attributes->getNamedItem('href')->value;
+            $x['id']         = (int) end(explode('/', $x['url']));
+            $x['dt_published'] = $v->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
+            $x['body']       = $v->getElementsByTagName('div')->item(1); // save the DOMElement object
+            // TODO: Also scrape out comments, loves, etc.
+            $x['usr']        = $this;
+            $ret[] = new FetLifeWriting($x);
+        }
+        return $ret;
     }
 
     /**
@@ -464,7 +504,55 @@ class FetLifeUser extends FetLife {
  * Base class for various content items within FetLife.
  */
 class FetLifeContent extends FetLife {
-    var $published_on;
+    var $dt_published;
+
+    // Return the full URL, with fragment identifier.
+    // Subclasses should define their own getUrl() method!
+    function getPermalink () {
+        return self::base_url . $this->getUrl();
+    }
+}
+
+/**
+ * A FetLife Writing published by a user.
+ */
+class FetLifeWriting extends FetLifeContent {
+    var $id;
+    var $title;
+    var $body;
+    var $category;
+    var $privacy;
+    var $author; // FetLifeProfile object of the author.
+    var $comment_count;
+    var $comments;
+    var $love_count;
+    var $loves;
+
+    function FetLifeWriting ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    // Returns the server-relative URL of the profile.
+    function getUrl () {
+        return '/users/' . $this->author->id . '/posts/' . $this->id;
+    }
+
+    function getBodyHtml () {
+        $html = '';
+        $doc = new DOMDocument();
+        foreach ($this->body->childNodes as $node) {
+            $el = $doc->importNode($node, true);
+            // Strip out FetLife's own "Read NUMBER comments" paragraph
+            if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
+                continue;
+            }
+            $html .= $doc->saveHTML($el);
+        }
+        return $html;
+    }
 }
 
 /**
@@ -473,10 +561,6 @@ class FetLifeContent extends FetLife {
 class FetLifeComment extends FetLifeContent {
     var $content;
     var $id;
-
-    // Return the full URL, with fragment identifier.
-    function getPermalink () {
-    }
 }
 
 /**
