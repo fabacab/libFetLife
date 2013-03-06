@@ -241,7 +241,7 @@ class FetLifeUser extends FetLife {
         } else {
             $result    = $this->connection->doHttpGet("/$nickname");
             $url_parts = parse_url($result['curl_info']['url']);
-            return end(explode('/', $url_parts['path']));
+            return current(array_reverse(explode('/', $url_parts['path'])));
         }
     }
 
@@ -307,14 +307,14 @@ class FetLifeUser extends FetLife {
             $x['title']      = $v->getElementsByTagName('h2')->item(0)->nodeValue;
             $x['category']   = trim($v->getElementsByTagName('strong')->item(0)->nodeValue);
             $author_url      = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
-            $author_id       = (int) end(explode('/', $author_url));
+            $author_id       = (int) current(array_reverse(explode('/', $author_url)));
             $author_avatar   = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
             $x['author']     = new FetLifeProfile(array(
                 'id' => $author_id,
                 'avatar_url' => $author_avatar
             ));
             $x['url']        = $v->getElementsByTagName('a')->item(1)->attributes->getNamedItem('href')->value;
-            $x['id']         = (int) end(explode('/', $x['url']));
+            $x['id']         = (int) current(array_reverse(explode('/', $x['url'])));
             $x['dt_published'] = $v->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
             $x['body']       = $v->getElementsByTagName('div')->item(1); // save the DOMElement object
             // TODO: Also scrape out comments, loves, etc.
@@ -424,7 +424,7 @@ class FetLifeUser extends FetLife {
             $u['nickname'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
             $u['avatar_url'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
             $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
-            $u['id'] = end(explode('/', $u['url']));
+            $u['id'] = current(array_reverse(explode('/', $u['url'])));
             $m = array();
             preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $v->getElementsByTagName('span')->item(1)->nodeValue, $m);
             list(, $u['age'], $u['gender'], $u['role']) = $m;
@@ -448,7 +448,7 @@ class FetLifeUser extends FetLife {
             $e = array();
             $e['title']      = $v->getElementsByTagName('a')->item(0)->nodeValue;
             $e['url']        = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
-            $e['id']         = end(explode('/', $e['url']));
+            $e['id']         = current(array_reverse(explode('/', $e['url'])));
             // Suppress this warning because we're manually appending UTC timezone marker.
             $start_timestamp = @strtotime($v->getElementsByTagName('div')->item(1)->nodeValue . ' UTC');
             $e['dtstart']    = ($start_timestamp) ?
@@ -704,7 +704,7 @@ class FetLifeEvent extends FetLifeContent {
         if ($creator_link = $this->usr->doXPathQuery('//h3[text()="Created by"]/following-sibling::ul//a', $doc)->item(0)) {
             $ret['created_by'] = new FetLifeProfile(array(
                 'url' => $creator_link->attributes->getNamedItem('href')->value,
-                'id' => end(explode('/', $creator_link->attributes->getNamedItem('href')->value)),
+                'id' => current(array_reverse(explode('/', $creator_link->attributes->getNamedItem('href')->value))),
                 'avatar_url' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
                 'nickname' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
             ));
