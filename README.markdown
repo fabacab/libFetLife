@@ -2,6 +2,10 @@
 
 `libFetLife` is a PHP class implementing a simple API that can be used to interface with the social networking website [FetLife.com](https://fetlife.com/).
 
+## System requirements
+
+To run `libFetLife`, you need PHP version 5.3.6 or greater.
+
 ## Getting started
 
 To use `libFetLife`, include it in your project and instantiate a new `FetLifeUser` object:
