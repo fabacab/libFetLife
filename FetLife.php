@@ -316,7 +316,7 @@ class FetLifeUser extends FetLife {
             $x['url']        = $v->getElementsByTagName('a')->item(1)->attributes->getNamedItem('href')->value;
             $x['id']         = (int) current(array_reverse(explode('/', $x['url'])));
             $x['dt_published'] = $v->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
-            $x['body']       = $v->getElementsByTagName('div')->item(1); // save the DOMElement object
+            $x['content']      = $v->getElementsByTagName('div')->item(1); // save the DOMElement object
             // TODO: Also scrape out comments, loves, etc.
             $x['usr']        = $this;
             $ret[] = new FetLifeWriting($x);
@@ -511,13 +511,12 @@ class FetLifeUser extends FetLife {
  * Base class for various content items within FetLife.
  */
 class FetLifeContent extends FetLife {
+    var $content;
     var $dt_published;
     // TODO: What can be generalized here? How about a "creator", which could
     //       replace "author" in FetLifeWriting,
     //       and "created_by" in FetLifeEvent.
     //var $creator;
-    // TODO: Can "content" replace things like "body" in FetLifeWriting?
-    //var $content;
 
     // Return the full URL, with fragment identifier.
     // Child classes should define their own getUrl() method!
@@ -526,6 +525,16 @@ class FetLifeContent extends FetLife {
     //       get changed to be class constants, which may not be acceptable.
     function getPermalink () {
         return self::base_url . $this->getUrl();
+    }
+
+    function getContentHtml () {
+        $html = '';
+        $doc = new DOMDocument();
+        foreach ($this->content->childNodes as $node) {
+            $el = $doc->importNode($node, true);
+            $html .= $doc->saveHTML($el);
+        }
+        return $html;
     }
 }
 
@@ -536,14 +545,12 @@ class FetLifeWriting extends FetLifeContent {
     var $usr; // Associated FetLifeUser object.
     var $id;
     var $title;
-    var $body; // The DOMElement object. Use `getBodyHtml()` to get as a string.
+    var $content; // DOMElement object. Use `getContentHtml()` to get as string.
     var $category;
     var $privacy;
     var $author; // FetLifeProfile object of the author.
-    var $comment_count;
     var $comments; // An array of FetLifeComment objects.
     // TODO: Implement "love" fetching?
-    var $love_count;
     var $loves;
 
     function FetLifeWriting ($arr_param) {
@@ -599,7 +606,7 @@ class FetLifeWriting extends FetLifeContent {
 
         // Scrape as much of the actual post's content as we can find.
         $ret['title'] = $doc->getElementsByTagName('h2')->item(0)->nodeValue;
-        $ret['body'] = $this->usr->doXPathQuery('//*[@id="post_content"]//div', $doc)->item(1);
+        $ret['content'] = $this->usr->doXPathQuery('//*[@id="post_content"]//div', $doc)->item(1);
         $ret['category'] = trim($this->usr->doXPathQuery('//*[@id="post_content"]//header//strong', $doc)->item(0)->nodeValue);
         $ret['dt_published'] = $this->usr->doXPathQuery('//*[@id="post_content"]//time/@datetime', $doc)->item(0)->value;
         $ret['privacy'] = $this->usr->doXPathQuery('//*[@id="privacy_section"]//*[@class="display"]', $doc)->item(0)->nodeValue;
@@ -625,10 +632,12 @@ class FetLifeWriting extends FetLifeContent {
         return $ret;
     }
 
-    function getBodyHtml () {
+    // Override parent's implementation to strip out final paragraph from
+    // contents that were scraped from a Writing listing page.
+    function getContentHtml () {
         $html = '';
         $doc = new DOMDocument();
-        foreach ($this->body->childNodes as $node) {
+        foreach ($this->content->childNodes as $node) {
             $el = $doc->importNode($node, true);
             // Strip out FetLife's own "Read NUMBER comments" paragraph
             if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
@@ -644,7 +653,6 @@ class FetLifeWriting extends FetLifeContent {
  * Generic class for comments on FetLife contents.
  */
 class FetLifeComment extends FetLifeContent {
-    var $content;
     var $id;
     var $creator;
 
