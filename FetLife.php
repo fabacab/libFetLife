@@ -425,13 +425,19 @@ class FetLifeUser extends FetLife {
             $u['avatar_url'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
             $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $u['id'] = current(array_reverse(explode('/', $u['url'])));
-            $m = array();
-            preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $v->getElementsByTagName('span')->item(1)->nodeValue, $m);
-            list(, $u['age'], $u['gender'], $u['role']) = $m;
+            list(, $u['age'], $u['gender'], $u['role']) = $this->parseAgeGenderRole($v->getElementsByTagName('span')->item(1)->nodeValue);
             $u['location'] = $v->getElementsByTagName('em')->item(0)->nodeValue;
             $ret[] = new FetLifeProfile($u);
         }
         return $ret;
+    }
+
+    // Helper function to parse the way FetLife prints ages, genders, and roles.
+    // TODO: Perhaps these utility functions ought go in their own parser class?
+    function parseAgeGenderRole ($str) {
+        $m = array();
+        preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $str, $m);
+        return $m;
     }
 
     /**
@@ -506,9 +512,18 @@ class FetLifeUser extends FetLife {
  */
 class FetLifeContent extends FetLife {
     var $dt_published;
+    // TODO: What can be generalized here? How about a "creator", which could
+    //       replace "author" in FetLifeWriting,
+    //       and "created_by" in FetLifeEvent.
+    //var $creator;
+    // TODO: Can "content" replace things like "body" in FetLifeWriting?
+    //var $content;
 
     // Return the full URL, with fragment identifier.
-    // Subclasses should define their own getUrl() method!
+    // Child classes should define their own getUrl() method!
+    // TODO: Should this become an abstract class to enforce his contract?
+    //       If so, what should be done with the class variables? They'll
+    //       get changed to be class constants, which may not be acceptable.
     function getPermalink () {
         return self::base_url . $this->getUrl();
     }
@@ -518,14 +533,16 @@ class FetLifeContent extends FetLife {
  * A FetLife Writing published by a user.
  */
 class FetLifeWriting extends FetLifeContent {
+    var $usr; // Associated FetLifeUser object.
     var $id;
     var $title;
-    var $body;
+    var $body; // The DOMElement object. Use `getBodyHtml()` to get as a string.
     var $category;
     var $privacy;
     var $author; // FetLifeProfile object of the author.
     var $comment_count;
-    var $comments;
+    var $comments; // An array of FetLifeComment objects.
+    // TODO: Implement "love" fetching?
     var $love_count;
     var $loves;
 
@@ -539,6 +556,73 @@ class FetLifeWriting extends FetLifeContent {
     // Returns the server-relative URL of the profile.
     function getUrl () {
         return '/users/' . $this->author->id . '/posts/' . $this->id;
+    }
+
+    /**
+     * Fetches and fills in the remainder of the Writing's data.
+     */
+    public function populate () {
+        $resp = $this->usr->connection->doHttpGet($this->getUrl());
+        $data = $this->parseWritingHtml($resp['body']);
+        foreach ($data as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    // Given some HTML of a FetLife writing page, returns an array of its data.
+    private function parseWritingHtml ($html) {
+        $doc = new DOMDocument();
+        @$doc->loadHTML($html);
+        $ret = array();
+
+        // Scrape as much of the author's info as we can find.
+        $hdr = $doc->getElementById('profile_header');
+        $el  = $hdr->getElementsByTagName('img')->item(0);
+        $author_name   = $el->attributes->getNamedItem('alt')->value;
+        $author_avatar = $el->attributes->getNamedItem('src')->value;
+        $author_url    = $hdr->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+        $author_id     = (int) current(array_reverse(explode('/', $author_url)));
+        list(, $author_age,
+            $author_gender,
+            $author_role) = $this->usr->parseAgeGenderRole($this->usr->doXPathQuery('//*[@class="age_gender_role"]', $doc)->item(0)->nodeValue);
+        // substr() is used to remove the parenthesis around the location here.
+        $author_location = substr($this->usr->doXPathQuery('//*[@class="location"]', $doc)->item(0)->nodeValue, 1, -1);
+        $ret['author'] = new FetLifeProfile(array(
+            'nickname' => $author_name,
+            'avatar_url' => $author_avatar,
+            'id' => $author_id,
+            'age' => $author_age,
+            'gender' => $author_gender,
+            'role' => $author_role,
+            'location' => $author_location
+        ));
+
+        // Scrape as much of the actual post's content as we can find.
+        $ret['title'] = $doc->getElementsByTagName('h2')->item(0)->nodeValue;
+        $ret['body'] = $this->usr->doXPathQuery('//*[@id="post_content"]//div', $doc)->item(1);
+        $ret['category'] = trim($this->usr->doXPathQuery('//*[@id="post_content"]//header//strong', $doc)->item(0)->nodeValue);
+        $ret['dt_published'] = $this->usr->doXPathQuery('//*[@id="post_content"]//time/@datetime', $doc)->item(0)->value;
+        $ret['privacy'] = $this->usr->doXPathQuery('//*[@id="privacy_section"]//*[@class="display"]', $doc)->item(0)->nodeValue;
+
+        // And its comments, too.
+        $ret['comments'] = array();
+        $comments = $doc->getElementById('comments')->getElementsByTagName('article');
+        foreach ($comments as $comment) {
+            $commenter_el = $comment->getElementsByTagName('a')->item(0);
+            $commenter_url = $commenter_el->attributes->getNamedItem('href')->value;
+            $ret['comments'][] = new FetLifeComment(array(
+                'id' => (int) current(array_reverse(explode('_', $comment->getAttribute('id')))),
+                'creator' => new FetLifeProfile(array(
+                    'url' => $commenter_url,
+                    'id' => (int) current(array_reverse(explode('/', $commenter_url))),
+                    'avatar_url' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
+                    'nickname' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
+                )),
+                'dt_published' => $comment->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value,
+                'content' => $comment->getElementsByTagName('div')->item(0)
+            ));
+        }
+        return $ret;
     }
 
     function getBodyHtml () {
@@ -562,6 +646,30 @@ class FetLifeWriting extends FetLifeContent {
 class FetLifeComment extends FetLifeContent {
     var $content;
     var $id;
+    var $creator;
+
+    function FetLifeComment ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    function getUrl () {
+        return parent::getUrl() . '#' . $this->getContentType() . "_comment_{$this->id}";
+    }
+
+    // Helper function to reflect on what this comment is attached to.
+    private function getContentType () {
+        switch ($x = get_parent_class($this)) {
+            case 'FetLifeWriting':
+                return 'post';
+            case 'FetLifeStatus':
+                return 'status';
+            default:
+                return $x;
+        }
+    }
 }
 
 /**
