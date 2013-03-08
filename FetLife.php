@@ -317,9 +317,29 @@ class FetLifeUser extends FetLife {
             $x['id']         = (int) current(array_reverse(explode('/', $x['url'])));
             $x['dt_published'] = $v->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
             $x['content']      = $v->getElementsByTagName('div')->item(1); // save the DOMElement object
-            // TODO: Also scrape out comments, loves, etc.
             $x['usr']        = $this;
             $ret[] = new FetLifeWriting($x);
+        }
+        return $ret;
+    }
+
+    /**
+     * Retrieves a user's Pictures.
+     */
+    function getPicturesOf ($who = NULL, $pages = 0) {
+        $id = $this->resolveWho($who);
+        $items = $this->getItemsInListing('//ul[contains(@class, "page")]/li', "/users/$id/pictures", $pages);
+        $ret = array();
+        foreach ($items as $v) {
+            $x = array();
+            $x['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+            $x['id'] = (int) current(array_reverse(explode('/', $x['url'])));
+            $x['thumb_src'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
+            $x['src'] = preg_replace('/_110\.(jpg|jpeg|gif|png)$/', '_720.$1', $x['thumb_src']); // This is a good guess.
+            $x['content'] = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
+            $x['creator'] = new FetLifeProfile(array('id' => $id));
+            $x['usr'] = $this;
+            $ret[] = new FetLifePicture($x);
         }
         return $ret;
     }
@@ -432,12 +452,65 @@ class FetLifeUser extends FetLife {
         return $ret;
     }
 
-    // Helper function to parse the way FetLife prints ages, genders, and roles.
     // TODO: Perhaps these utility functions ought go in their own parser class?
+    /**
+     * Helper function to parse some info from a FetLife "profile_header" block.
+     *
+     * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
+     * @return FetLifeProfile A FetLifeProfile object.
+     */
+    function parseProfileHeader ($doc) {
+        $hdr = $doc->getElementById('profile_header');
+        $el  = $hdr->getElementsByTagName('img')->item(0);
+        $author_name   = $el->attributes->getNamedItem('alt')->value;
+        $author_avatar = $el->attributes->getNamedItem('src')->value;
+        $author_url    = $hdr->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
+        $author_id     = (int) current(array_reverse(explode('/', $author_url)));
+        list(, $author_age,
+            $author_gender,
+            $author_role) = $this->parseAgeGenderRole($this->doXPathQuery('//*[@class="age_gender_role"]', $doc)->item(0)->nodeValue);
+        // substr() is used to remove the parenthesis around the location here.
+        $author_location = substr($this->doXPathQuery('//*[@class="location"]', $doc)->item(0)->nodeValue, 1, -1);
+        return new FetLifeProfile(array(
+            'nickname' => $author_name,
+            'avatar_url' => $author_avatar,
+            'id' => $author_id,
+            'age' => $author_age,
+            'gender' => $author_gender,
+            'role' => $author_role,
+            'location' => $author_location
+        ));
+    }
     function parseAgeGenderRole ($str) {
         $m = array();
         preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $str, $m);
         return $m;
+    }
+    /**
+     * Helper function to parse any comments section on the page.
+     *
+     * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
+     * @return Array An Array of FetLifeComment objects.
+     */
+    function parseComments ($doc) {
+        $ret = array();
+        $comments = $doc->getElementById('comments')->getElementsByTagName('article');
+        foreach ($comments as $comment) {
+            $commenter_el = $comment->getElementsByTagName('a')->item(0);
+            $commenter_url = $commenter_el->attributes->getNamedItem('href')->value;
+            $ret[] = new FetLifeComment(array(
+                'id' => (int) current(array_reverse(explode('_', $comment->getAttribute('id')))),
+                'creator' => new FetLifeProfile(array(
+                    'url' => $commenter_url,
+                    'id' => (int) current(array_reverse(explode('/', $commenter_url))),
+                    'avatar_url' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
+                    'nickname' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
+                )),
+                'dt_published' => $comment->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value,
+                'content' => $comment->getElementsByTagName('div')->item(0)
+            ));
+        }
+        return $ret;
     }
 
     /**
@@ -511,12 +584,11 @@ class FetLifeUser extends FetLife {
  * Base class for various content items within FetLife.
  */
 class FetLifeContent extends FetLife {
-    var $content;
+    var $usr; // Associated FetLifeUser object.
+    var $id;
+    var $content; // DOMElement object. Use `getContentHtml()` to get as string.
     var $dt_published;
-    // TODO: What can be generalized here? How about a "creator", which could
-    //       replace "author" in FetLifeWriting,
-    //       and "created_by" in FetLifeEvent.
-    //var $creator;
+    var $creator;
 
     // Return the full URL, with fragment identifier.
     // Child classes should define their own getUrl() method!
@@ -525,6 +597,16 @@ class FetLifeContent extends FetLife {
     //       get changed to be class constants, which may not be acceptable.
     function getPermalink () {
         return self::base_url . $this->getUrl();
+    }
+
+    // Fetches and fills in the remainder of the object's data.
+    // For this to work, child classes must define their own parseHtml() method.
+    function populate () {
+        $resp = $this->usr->connection->doHttpGet($this->getUrl());
+        $data = $this->parseHtml($resp['body']);
+        foreach ($data as $k => $v) {
+            $this->$k = $v;
+        }
     }
 
     function getContentHtml () {
@@ -542,12 +624,10 @@ class FetLifeContent extends FetLife {
  * A FetLife Writing published by a user.
  */
 class FetLifeWriting extends FetLifeContent {
-    var $usr; // Associated FetLifeUser object.
-    var $id;
     var $title;
-    var $content; // DOMElement object. Use `getContentHtml()` to get as string.
     var $category;
     var $privacy;
+    // TODO: Test replacing $author with `FetLifeContent->creator` instead.
     var $author; // FetLifeProfile object of the author.
     var $comments; // An array of FetLifeComment objects.
     // TODO: Implement "love" fetching?
@@ -565,70 +645,21 @@ class FetLifeWriting extends FetLifeContent {
         return '/users/' . $this->author->id . '/posts/' . $this->id;
     }
 
-    /**
-     * Fetches and fills in the remainder of the Writing's data.
-     */
-    public function populate () {
-        $resp = $this->usr->connection->doHttpGet($this->getUrl());
-        $data = $this->parseWritingHtml($resp['body']);
-        foreach ($data as $k => $v) {
-            $this->$k = $v;
-        }
-    }
-
     // Given some HTML of a FetLife writing page, returns an array of its data.
-    private function parseWritingHtml ($html) {
+    function parseHtml ($html) {
         $doc = new DOMDocument();
         @$doc->loadHTML($html);
         $ret = array();
 
-        // Scrape as much of the author's info as we can find.
-        $hdr = $doc->getElementById('profile_header');
-        $el  = $hdr->getElementsByTagName('img')->item(0);
-        $author_name   = $el->attributes->getNamedItem('alt')->value;
-        $author_avatar = $el->attributes->getNamedItem('src')->value;
-        $author_url    = $hdr->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
-        $author_id     = (int) current(array_reverse(explode('/', $author_url)));
-        list(, $author_age,
-            $author_gender,
-            $author_role) = $this->usr->parseAgeGenderRole($this->usr->doXPathQuery('//*[@class="age_gender_role"]', $doc)->item(0)->nodeValue);
-        // substr() is used to remove the parenthesis around the location here.
-        $author_location = substr($this->usr->doXPathQuery('//*[@class="location"]', $doc)->item(0)->nodeValue, 1, -1);
-        $ret['author'] = new FetLifeProfile(array(
-            'nickname' => $author_name,
-            'avatar_url' => $author_avatar,
-            'id' => $author_id,
-            'age' => $author_age,
-            'gender' => $author_gender,
-            'role' => $author_role,
-            'location' => $author_location
-        ));
+        $ret['author'] = $this->usr->parseProfileHeader($doc);
 
-        // Scrape as much of the actual post's content as we can find.
         $ret['title'] = $doc->getElementsByTagName('h2')->item(0)->nodeValue;
         $ret['content'] = $this->usr->doXPathQuery('//*[@id="post_content"]//div', $doc)->item(1);
         $ret['category'] = trim($this->usr->doXPathQuery('//*[@id="post_content"]//header//strong', $doc)->item(0)->nodeValue);
         $ret['dt_published'] = $this->usr->doXPathQuery('//*[@id="post_content"]//time/@datetime', $doc)->item(0)->value;
         $ret['privacy'] = $this->usr->doXPathQuery('//*[@id="privacy_section"]//*[@class="display"]', $doc)->item(0)->nodeValue;
 
-        // And its comments, too.
-        $ret['comments'] = array();
-        $comments = $doc->getElementById('comments')->getElementsByTagName('article');
-        foreach ($comments as $comment) {
-            $commenter_el = $comment->getElementsByTagName('a')->item(0);
-            $commenter_url = $commenter_el->attributes->getNamedItem('href')->value;
-            $ret['comments'][] = new FetLifeComment(array(
-                'id' => (int) current(array_reverse(explode('_', $comment->getAttribute('id')))),
-                'creator' => new FetLifeProfile(array(
-                    'url' => $commenter_url,
-                    'id' => (int) current(array_reverse(explode('/', $commenter_url))),
-                    'avatar_url' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
-                    'nickname' => $commenter_el->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value
-                )),
-                'dt_published' => $comment->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value,
-                'content' => $comment->getElementsByTagName('div')->item(0)
-            ));
-        }
+        $ret['comments'] = $this->usr->parseComments($doc);
         return $ret;
     }
 
@@ -647,6 +678,44 @@ class FetLifeWriting extends FetLifeContent {
         }
         return $html;
     }
+}
+
+/**
+ * A FetLife Picture page. (Not the <img/> itself.)
+ */
+class FetLifePicture extends FetLifeContent {
+    var $src;       // The fully-qualified URL of the image itself.
+    var $thumb_src; // The fully-qualified URL of the thumbnail.
+    var $comments;
+
+    function FetLifePicture ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    function getUrl () {
+        return "/users/{$this->creator->id}/pictures/{$this->id}";
+    }
+
+    // Parses a FetLife Picture page's HTML.
+    function parseHtml ($html) {
+        $doc = new DOMDocument();
+        @$doc->loadHTML($html);
+        $ret = array();
+
+        $ret['creator'] = $this->usr->parseProfileHeader($doc);
+
+        // TODO: I guess I could look at the actual page instea of guessing?
+        //$ret['src'];
+        $ret['dt_published'] = $doc->getElementById('picture')->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
+
+        $ret['comments'] = $this->usr->parseComments($doc);
+
+        return $ret;
+    }
+
 }
 
 /**
