@@ -309,7 +309,7 @@ class FetLifeUser extends FetLife {
             $author_url      = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $author_id       = (int) current(array_reverse(explode('/', $author_url)));
             $author_avatar   = $v->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value;
-            $x['author']     = new FetLifeProfile(array(
+            $x['creator']     = new FetLifeProfile(array(
                 'id' => $author_id,
                 'avatar_url' => $author_avatar
             ));
@@ -627,8 +627,6 @@ class FetLifeWriting extends FetLifeContent {
     var $title;
     var $category;
     var $privacy;
-    // TODO: Test replacing $author with `FetLifeContent->creator` instead.
-    var $author; // FetLifeProfile object of the author.
     var $comments; // An array of FetLifeComment objects.
     // TODO: Implement "love" fetching?
     var $loves;
@@ -642,7 +640,7 @@ class FetLifeWriting extends FetLifeContent {
 
     // Returns the server-relative URL of the profile.
     function getUrl () {
-        return '/users/' . $this->author->id . '/posts/' . $this->id;
+        return '/users/' . $this->creator->id . '/posts/' . $this->id;
     }
 
     // Given some HTML of a FetLife writing page, returns an array of its data.
@@ -651,7 +649,7 @@ class FetLifeWriting extends FetLifeContent {
         @$doc->loadHTML($html);
         $ret = array();
 
-        $ret['author'] = $this->usr->parseProfileHeader($doc);
+        $ret['creator'] = $this->usr->parseProfileHeader($doc);
 
         $ret['title'] = $doc->getElementsByTagName('h2')->item(0)->nodeValue;
         $ret['content'] = $this->usr->doXPathQuery('//*[@id="post_content"]//div', $doc)->item(1);
@@ -763,6 +761,7 @@ class FetLifeProfile extends FetLifeContent {
     // TODO: etc...
 
     function FetLifeProfile ($arr_param) {
+        unset($this->creator); // Profile can't have a creator; it IS a creator.
         // TODO: Rewrite this a bit more defensively.
         foreach ($arr_param as $k => $v) {
             $this->$k = $v;
