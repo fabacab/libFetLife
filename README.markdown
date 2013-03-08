@@ -32,6 +32,17 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // If there are many pages, you can set a limit.
     $friends_partial = $FL->getFriendsOf('maymay', 3); // Only first 3 pages.
 
+    // You can also fetch arrays of a user's FetLife data as objects this way.
+    $writings = $FL->getWritingsOf('JohnBaku'); // All of JohnBaku's Writings.
+    $pictures = $FL->getPicturesOf(1);          // All of JohnBaku's Pictures.
+    // If you want to fetch comments, you need to populate() the objects.
+    $writings_and_pictures = array_merge($writings, $pictures);
+    foreach ($writings_and_pictures as $item) {
+        $item->comments;   // currently, returns an NULL
+        $item->populate();
+        $item->comments;   // now, returns an array of FetLifeComment objects.
+    }
+
     // Numerous other functions also return arrays, with optional page limit.
     $members = $FL->getMembersOfGroup(11708); // "Kink On Tap"
     $kinksters = $FL->getKinkstersWithFetish(193); // "Corsets"
@@ -77,6 +88,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
 
 ## Projects that use libFetLife
 
+* [FetLife WordPress eXtended RSS Generator](https://github.com/meitar/fetlife2wxr)
 * [FetLife iCalendar](https://github.com/meitar/fetlife-icalendar/)
 * [FetLife Export](https://github.com/meitar/fetlife-export/)
 * [FetLife Bridge](https://github.com/meitar/fetlife-bridge/)
