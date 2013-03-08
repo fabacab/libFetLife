@@ -707,6 +707,7 @@ class FetLifePicture extends FetLifeContent {
 
         // TODO: I guess I could look at the actual page instea of guessing?
         //$ret['src'];
+        $ret['content'] = $this->usr->doXPathQuery('//span[contains(@class, "caption")]', $doc)->item(0);
         $ret['dt_published'] = $doc->getElementById('picture')->getElementsByTagName('time')->item(0)->attributes->getNamedItem('datetime')->value;
 
         $ret['comments'] = $this->usr->parseComments($doc);
