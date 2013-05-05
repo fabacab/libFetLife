@@ -25,6 +25,16 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     print $FL->getUserIdByNickname('JohnBaku'); // prints "1"
     print $FL->getUserNicknameById(1254);       // prints "maymay"
 
+    // Object-oriented access to user info is available as FetLifeProfile objects.
+    $profile = $FL->getUserProfile(1);          // Profile with ID 1
+    $profile->nickname;                         // "JohnBaku"
+    $profile->avatar_url;
+    $profile->age;
+    $profile->gender;
+    $profile->role;
+    $profile->isPayingAccount(); // true
+    // etc.
+
     // Get a user's friends list as an array of FetLifeProfile objects.
     $friends = $FL->getFriendsOf('maymay');
     // A numeric FetLife user ID also works.

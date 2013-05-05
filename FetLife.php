@@ -257,6 +257,16 @@ class FetLifeUser extends FetLife {
         return $this->connection->findUserNickname($result['body']);
     }
 
+    function getUserProfile ($who = NULL) {
+        $id = $this->resolveWho($who);
+        $profile = new FetLifeProfile(array(
+            'usr' => $this,
+            'id' => $id
+        ));
+        $profile->populate();
+        return $profile;
+    }
+
     /**
      * Retrieves a user's friend list.
      *
@@ -289,6 +299,16 @@ class FetLifeUser extends FetLife {
                     return $this->getUserIdByNickname($who);
                 }
         }
+    }
+
+    /**
+     * Helper function to determine whether we've been bounced to the "Home" page.
+     * This might happen if the Profile page we're trying to load doesn't exist.
+     *
+     * TODO: Is there a more elegant way for handling this kind of "error"?
+     */
+    function isHomePage ($str) {
+        return (preg_match('/<title>Home - FetLife<\/title>/', $str)) ? true: false;
     }
 
     /**
@@ -759,6 +779,7 @@ class FetLifeProfile extends FetLifeContent {
     var $location; // TODO: Split this up?
     var $nickname;
     var $role;
+    var $paying_account;
     // TODO: etc...
 
     function FetLifeProfile ($arr_param) {
@@ -785,6 +806,33 @@ class FetLifeProfile extends FetLifeContent {
         } else {
             return self::base_url . $this->getUrl();
         }
+    }
+
+    // Given some HTML of a FetLife Profile page, returns an array of its data.
+    function parseHtml ($html) {
+        // Don't try parsing if we got bounced off the Profile for any reason.
+        if ($this->usr->isHomePage($html)) {
+            // TODO: THROW an actual error, please?
+            return false;
+        }
+        $doc = new DOMDocument();
+        @$doc->loadHTML($html);
+        $ret = array();
+
+        list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($doc->getElementsByTagName('h2')->item(0)->getElementsByTagName('span')->item(0)->nodeValue);
+        $ret['avatar_url'] = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)->attributes->getNamedItem('src')->value;
+        $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
+        $ret['nickname'] = $doc->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
+        $ret['paying_account'] = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)->nodeValue;
+
+        return $ret;
+    }
+
+    /**
+     * Whether or not this user profile has a paid subscription to FetLife.
+     */
+    function isPayingAccount () {
+        return ($this->paying_account) ? true : false;
     }
 }
 
