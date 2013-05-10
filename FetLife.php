@@ -780,6 +780,7 @@ class FetLifeProfile extends FetLifeContent {
     var $nickname;
     var $role;
     var $paying_account;
+    var $num_friends; // Number of friends displayed on their profile.
     // TODO: etc...
 
     function FetLifeProfile ($arr_param) {
@@ -824,6 +825,11 @@ class FetLifeProfile extends FetLifeContent {
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         $ret['nickname'] = $doc->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
         $ret['paying_account'] = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)->nodeValue;
+        if ($el = $doc->getElementsByTagName('h4')->item(0)->getElementsByTagName('span')->item(0)) {
+            $ret['num_friends'] = (int) str_replace(',', '', substr($el->nodeValue, 1, -1)); // Strip enclosing parenthesis and commas for results like "(1,057)"
+        } else {
+            $ret['num_friends'] = 0;
+        }
 
         return $ret;
     }
