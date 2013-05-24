@@ -829,8 +829,11 @@ class FetLifeProfile extends FetLifeContent {
         @$doc->loadHTML($html);
         $ret = array();
 
+        // TODO: Defensively check for HTML elements successfully scraped, this is sloppy.
         list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($doc->getElementsByTagName('h2')->item(0)->getElementsByTagName('span')->item(0)->nodeValue);
-        $ret['avatar_url'] = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)->attributes->getNamedItem('src')->value;
+        if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
+            $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
+        }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         $ret['nickname'] = $doc->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
         $ret['paying_account'] = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)->nodeValue;
