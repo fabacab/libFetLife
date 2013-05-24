@@ -821,7 +821,7 @@ class FetLifeProfile extends FetLifeContent {
     // Given some HTML of a FetLife Profile page, returns an array of its data.
     function parseHtml ($html) {
         // Don't try parsing if we got bounced off the Profile for any reason.
-        if ($this->usr->isHomePage($html)) {
+        if ($this->usr->isHomePage($html) || $this->usr->isHttp500ErrorPage($html)) {
             // TODO: THROW an actual error, please?
             return false;
         }
