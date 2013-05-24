@@ -830,17 +830,23 @@ class FetLifeProfile extends FetLifeContent {
         $ret = array();
 
         // TODO: Defensively check for HTML elements successfully scraped, this is sloppy.
-        list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($doc->getElementsByTagName('h2')->item(0)->getElementsByTagName('span')->item(0)->nodeValue);
+        if ($el = $doc->getElementsByTagName('h2')->item(0)) {
+            list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($el->getElementsByTagName('span')->item(0)->nodeValue);
+        }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
-        $ret['nickname'] = $doc->getElementsByTagName('img')->item(0)->attributes->getNamedItem('alt')->value;
+        if ($el = $doc->getElementsByTagName('img')->item(0)) {
+            $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
+        }
         $ret['paying_account'] = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)->nodeValue;
-        if ($el = $doc->getElementsByTagName('h4')->item(0)->getElementsByTagName('span')->item(0)) {
-            $ret['num_friends'] = (int) str_replace(',', '', substr($el->nodeValue, 1, -1)); // Strip enclosing parenthesis and commas for results like "(1,057)"
-        } else {
-            $ret['num_friends'] = 0;
+        if ($el = $doc->getElementsByTagName('h4')->item(0)) {
+            if ($el_x = $el->getElementsByTagName('span')->item(0)) {
+                $ret['num_friends'] = (int) str_replace(',', '', substr($el_x->nodeValue, 1, -1)); // Strip enclosing parenthesis and commas for results like "(1,057)"
+            } else {
+                $ret['num_friends'] = 0;
+            }
         }
 
         return $ret;
