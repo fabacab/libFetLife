@@ -312,6 +312,15 @@ class FetLifeUser extends FetLife {
     }
 
     /**
+     * Helper function to determine whether we've gotten back an HTTP error page.
+     *
+     * TODO: Is there a more elegant way for handling this kind of "error"?
+     */
+    function isHttp500ErrorPage ($str) {
+        return (preg_match('/<p class="error_code">500 Internal Server Error<\/p>/', $str)) ? true: false;
+    }
+
+    /**
      * Retrieves a user's Writings.
      *
      * @param mixed $who User whose FetLife Writings to fetch. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
