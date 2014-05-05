@@ -16,6 +16,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // Log in as a user.
     $FL = new FetLifeUser('username', 'password');
     $FL->connection->setProxy('example.proxy.com:9050', CURLPROXY_SOCKS5); // Optional.
+    $FL->connection->setProxy('auto'); // or, set a new randomized proxy automatically.
     $FL->logIn();
 
     // Print some basic information about the account you're using.

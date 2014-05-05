@@ -58,8 +58,39 @@ class FetLifeConnection extends FetLife {
         }
     }
 
+    private function scrapeProxyURL () {
+        $ch = curl_init(
+            'http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=&reliability=5000'
+        );
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $html = curl_exec($ch);
+        curl_close($ch);
+        $dom = new DOMDocument();
+        @$dom->loadHTML($html);
+        $rows = $dom->getElementsByTagName('tr');
+        $urls = array();
+        foreach ($rows as $row) {
+            if (0 === strpos($row->getAttribute('class'), 'row')) {
+                $str = $row->getElementsByTagName('a')->item(0)->getAttribute('href');
+                parse_str($str);
+                $urls[] = array('host' => $host, 'port' => $port);
+            }
+        }
+        $n = mt_rand(0, count($urls) - 1); // choose a random proxy from the scraped list
+        $p = parse_url("https://{$urls[$n]['host']}:{$urls[$n]['port']}");
+        return array(
+            'url'  => "{$p['host']}:{$p['port']}",
+            'type' => ('socks' === $p['scheme']) ? CURLPROXY_SOCKS5 : CURLPROXY_HTTP
+        );
+    }
+
     // A flag to pass to curl_setopt()'s proxy settings.
     public function setProxy ($url, $type = CURLPROXY_HTTP) {
+        if ('auto' === $url) {
+            $p = $this->scrapeProxyURL();
+            $url = $p['url'];
+            $type = $p['type'];
+        }
         $this->proxy_url = $url;
         $this->proxy_type = $type;
     }
