@@ -424,6 +424,10 @@ class FetLifeUser extends FetLife {
     function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
     }
+    
+    function getKinkstersInLocation($loc_str, $pages = 0) {
+        return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
+    }
 
     /**
      * Gets a single event.
