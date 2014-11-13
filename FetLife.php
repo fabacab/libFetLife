@@ -870,6 +870,8 @@ class FetLifeProfile extends FetLifeContent {
         }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
+            //Fix: Get enhanced resolution avatar
+            $ret['avatar_url'] = preg_replace('/_60.jpg$/', '_200.jpg', $ret['avatar_url']);
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
