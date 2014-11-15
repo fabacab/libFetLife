@@ -901,8 +901,7 @@ class FetLifeProfile extends FetLifeContent {
      */
     function transformAvatarURL($avatar_url, $res = 200)
     {
-        //Fix: Get enhanced resolution avatar
-        return preg_replace('/_60.jpg$/', '_$res.jpg', $avatar_url);
+        return preg_replace('/_60.jpg$/', "_$res.jpg", $avatar_url);
     }
 }
 
