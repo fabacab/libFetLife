@@ -53,9 +53,9 @@ class FetLifeConnection extends FetLife {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
             }
-        } else {
-            $this->cookiejar = "$dir/{$this->usr->nickname}";
         }
+        $this->cookiejar = "$dir/{$this->usr->nickname}";
+        
     }
 
     private function scrapeProxyURL () {
