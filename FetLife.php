@@ -53,9 +53,9 @@ class FetLifeConnection extends FetLife {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
             }
-        } else {
-            $this->cookiejar = "$dir/{$this->usr->nickname}";
         }
+        $this->cookiejar = "$dir/{$this->usr->nickname}";
+        
     }
 
     private function scrapeProxyURL () {
@@ -158,7 +158,7 @@ class FetLifeConnection extends FetLife {
         }
         curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookiejar); // use session cookies
         curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookiejar); // save session cookies
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -423,6 +423,10 @@ class FetLifeUser extends FetLife {
     }
     function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
+    }
+    
+    function getKinkstersInLocation($loc_str, $pages = 0) {
+        return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
     }
 
     /**
@@ -865,7 +869,7 @@ class FetLifeProfile extends FetLifeContent {
             list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($el->getElementsByTagName('span')->item(0)->nodeValue);
         }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
-            $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
+            $ret['avatar_url'] = $this->transformAvatarURL($el->attributes->getNamedItem('src')->value, 200);
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
@@ -888,6 +892,15 @@ class FetLifeProfile extends FetLifeContent {
      */
     function isPayingAccount () {
         return ($this->paying_account) ? true : false;
+    }
+    
+    /*
+     * Will use regex replace to transform the resolution of the avatar_url's 
+     * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the 
+     * requested resolution however.
+     */
+    function transformAvatarURL($avatar_url, $res = 200) {
+        return preg_replace('/_60.jpg$/', "_$res.jpg", $avatar_url);
     }
 }
 
