@@ -869,7 +869,7 @@ class FetLifeProfile extends FetLifeContent {
             list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($el->getElementsByTagName('span')->item(0)->nodeValue);
         }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
-            $ret['avatar_url'] = transformAvatarURL($el->attributes->getNamedItem('src')->value, 200);
+            $ret['avatar_url'] = $this->transformAvatarURL($el->attributes->getNamedItem('src')->value, 200);
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
@@ -899,8 +899,7 @@ class FetLifeProfile extends FetLifeContent {
      * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the 
      * requested resolution however.
      */
-    function transformAvatarURL($avatar_url, $res = 200)
-    {
+    function transformAvatarURL($avatar_url, $res = 200) {
         return preg_replace('/_60.jpg$/', "_$res.jpg", $avatar_url);
     }
 }
