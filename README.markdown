@@ -65,6 +65,9 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // Or get just the first couple pages.
     $events_partial = $FL->getUpcomingEventsInLocation('cities/5898', 2); // Only 2 pages.
 
+    //Works the same way as the two previous methods do but for people in a city
+    $local_kinksters = $FL->getKinkstersInLocation('cities/5898'); // Get all kinksters in Balitmore, MD.
+
     // FetLifeEvent objects are instantiated from minimal data.
     // To fill them out, call their populate() method.
     $events[0]->populate(); // Flesh out data from first event fetched.

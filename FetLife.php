@@ -869,9 +869,7 @@ class FetLifeProfile extends FetLifeContent {
             list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($el->getElementsByTagName('span')->item(0)->nodeValue);
         }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
-            $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
-            //Fix: Get enhanced resolution avatar
-            $ret['avatar_url'] = preg_replace('/_60.jpg$/', '_200.jpg', $ret['avatar_url']);
+            $ret['avatar_url'] = transformAvatarURL($el->attributes->getNamedItem('src')->value, 200);
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
@@ -894,6 +892,17 @@ class FetLifeProfile extends FetLifeContent {
      */
     function isPayingAccount () {
         return ($this->paying_account) ? true : false;
+    }
+    
+    /*
+     * Will use regex replace to transform the resolution of the avatar_url's 
+     * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the 
+     * requested resolution however.
+     */
+    function transformAvatarURL($avatar_url, $res = 200)
+    {
+        //Fix: Get enhanced resolution avatar
+        return preg_replace('/_60.jpg$/', '_$res.jpg', $avatar_url);
     }
 }
 
