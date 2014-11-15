@@ -55,7 +55,6 @@ class FetLifeConnection extends FetLife {
             }
         }
         $this->cookiejar = "$dir/{$this->usr->nickname}";
-        
     }
 
     private function scrapeProxyURL () {
@@ -424,7 +423,6 @@ class FetLifeUser extends FetLife {
     function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
     }
-    
     function getKinkstersInLocation($loc_str, $pages = 0) {
         return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
     }
@@ -853,6 +851,10 @@ class FetLifeProfile extends FetLifeContent {
         }
     }
 
+    function getAvatarURL ($size = 60) {
+        return $this->transformAvatarURL($this->avatar_url, $size);
+    }
+
     // Given some HTML of a FetLife Profile page, returns an array of its data.
     function parseHtml ($html) {
         // Don't try parsing if we got bounced off the Profile for any reason.
@@ -869,7 +871,7 @@ class FetLifeProfile extends FetLifeContent {
             list(, $ret['age'], $ret['gender'], $ret['role']) = $this->usr->parseAgeGenderRole($el->getElementsByTagName('span')->item(0)->nodeValue);
         }
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
-            $ret['avatar_url'] = $this->transformAvatarURL($el->attributes->getNamedItem('src')->value, 200);
+            $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
         $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
@@ -893,14 +895,14 @@ class FetLifeProfile extends FetLifeContent {
     function isPayingAccount () {
         return ($this->paying_account) ? true : false;
     }
-    
-    /*
-     * Will use regex replace to transform the resolution of the avatar_url's 
-     * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the 
+
+    /**
+     * Will use regex replace to transform the resolution of the avatar_url's
+     * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the
      * requested resolution however.
      */
-    function transformAvatarURL($avatar_url, $res = 200) {
-        return preg_replace('/_60.jpg$/', "_$res.jpg", $avatar_url);
+    function transformAvatarURL($avatar_url, $size) {
+        return preg_replace('/_[0-9]+\.jpg$/', "_$size.jpg", $avatar_url);
     }
 }
 

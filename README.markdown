@@ -29,7 +29,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // Object-oriented access to user info is available as FetLifeProfile objects.
     $profile = $FL->getUserProfile(1);          // Profile with ID 1
     $profile->nickname;                         // "JohnBaku"
-    $profile->avatar_url;
+    $profile->getAvatarURL();                   // optional $size parameter retrieves larger images
     $profile->age;
     $profile->gender;
     $profile->role;
