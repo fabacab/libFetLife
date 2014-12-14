@@ -287,14 +287,24 @@ class FetLifeUser extends FetLife {
         return $this->connection->findUserNickname($result['body']);
     }
 
+    /**
+     * Queries FetLife for a user's profile information.
+     *
+     * @param mixed $who Nickname or user ID of a FetLife profile.
+     * @return mixed A FetLifeProfile object on success, FALSE on failure.
+     */
     function getUserProfile ($who = NULL) {
         $id = $this->resolveWho($who);
         $profile = new FetLifeProfile(array(
             'usr' => $this,
             'id' => $id
         ));
-        $profile->populate();
-        return $profile;
+        try {
+            $profile->populate();
+            return $profile;
+        } catch (Exception $e) {
+            return false;
+        }
     }
 
     /**
@@ -859,8 +869,7 @@ class FetLifeProfile extends FetLifeContent {
     function parseHtml ($html) {
         // Don't try parsing if we got bounced off the Profile for any reason.
         if ($this->usr->isHomePage($html) || $this->usr->isHttp500ErrorPage($html)) {
-            // TODO: THROW an actual error, please?
-            return false;
+            throw new Exception('FetLife Profile does not exist.');
         }
         $doc = new DOMDocument();
         @$doc->loadHTML($html);
