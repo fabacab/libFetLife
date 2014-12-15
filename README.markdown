@@ -33,9 +33,11 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     $profile->age;
     $profile->gender;
     $profile->role;
-    $profile->isPayingAccount(); // true if the profile has a "supporter" badge
-    $profile->getGroups();       // array of FetLifeGroup objects
-    $profile->getGroupsLead();   // array of FetLifeGroups the user is a leader of
+    $profile->isPayingAccount();  // true if the profile has a "supporter" badge
+    $profile->getEvents();        // array of FetLifeEvent objects
+    $profile->getEventsGoingTo(); // array of FetLifeEvent the user has RSVP'ed "going" to
+    $profile->getGroups();        // array of FetLifeGroup objects
+    $profile->getGroupsLead();    // array of FetLifeGroups the user is a leader of
     // etc.
 
     // Get a user's friends list as an array of FetLifeProfile objects.

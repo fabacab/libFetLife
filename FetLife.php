@@ -558,6 +558,11 @@ class FetLifeUser extends FetLife {
         preg_match('/^([0-9]{2})(\S+)? (\S+)?$/', $str, $m);
         return $m;
     }
+    function parseIdFromUrl ($url) {
+        $m = array();
+        preg_match('/(\d+)$/', $url, $m);
+        return ($m[1]) ? $m[1] : false;
+    }
     /**
      * Helper function to parse any comments section on the page.
      *
@@ -585,29 +590,41 @@ class FetLifeUser extends FetLife {
         return $ret;
     }
     /**
-     * Helper function to parse out info from a profile's group lists.
+     * Helper function to parse out info from a profile's associated content lists.
      *
      * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
-     * @param bool $is_leader Add to group leadership info, too?
-     * @return Object An object of arrays of group leadership IDs and FetLifeGroup objects.
+     * @param string $type The specific section of associated content to parse.
+     * @param bool $is_leader Add to leadership/RSVP going to info, too?
+     * @return Object An object with two members, item_ids and items, each arrays.
      */
-    public function parseGroupsInfo ($doc, $is_leader = false) {
+    public function parseAssociatedContentInfo ($doc, $obj_type, $is_leader = false) {
         $ret = new stdClass();
-        $ret->groups = array();
-        $ret->groups_lead = array();
+        $ret->items = array();
+        $ret->item_ids = array();
 
-        $str = ($is_leader) ? 'Groups I lead' : 'Groups member of';
+        switch ($obj_type) {
+            case 'event':
+                $str = ($is_leader) ? 'Events going to' : 'Events maybe going to';
+                break;
+            case 'writing':
+                $str = 'Writing';
+                break;
+            case 'group':
+                $str = ($is_leader) ? 'Groups I lead' : 'Groups member of';
+                break;
+        }
+        $obj = 'FetLife' . ucfirst($obj_type);
 
         if ($el = $this->doXPathQuery("//h4[starts-with(normalize-space(.), '$str')]/following-sibling::ul[1]", $doc)) {
             foreach ($el->item(0)->getElementsByTagName('a') as $el_x) {
                 // explode() to extract the group number from like: href="/groups/1234"
-                $gid = explode('/', $el_x->getAttribute('href'))[2];
+                $id = $this->parseIdFromUrl($el_x->getAttribute('href'));
                 if ($is_leader) {
-                    $ret->groups_lead[] = $gid;
+                    $ret->item_ids[] = $id;
                 }
-                $ret->groups[] = new FetLifeGroup(array(
-                    'id' => $gid,
-                    'name' => $el_x->nodeValue
+                $ret->items[] = new $obj(array(
+                    'id' => $id,
+                    'name' => $el_x->firstChild->textContent
                 ));
             }
         }
@@ -852,12 +869,14 @@ class FetLifeProfile extends FetLifeContent {
     public $orientation;
     public $paying_account;
     public $num_friends; //< Number of friends displayed on their profile.
-    public $groups;      //< Array of FetLifeGroup objects
     public $bio;         //< Whatever's in the "About Me" section
     public $websites;    //< An array of URLs listed by the profile.
     public $fetishes;    //< An array of FetLifeFetish objects, eventually
 
-    protected $groups_lead; //< Array of group IDs for which this profile is a group leader.
+    protected $events;      //< Array of FetLifeEvent objects
+    protected $groups;      //< Array of FetLifeGroup objects
+    protected $events_going; //< Array of event IDs for which this user RSVP'ed "going"
+    protected $groups_lead;  //< Array of group IDs for which this profile is a group leader.
 
     function __construct ($arr_param) {
         parent::__construct($arr_param);
@@ -886,15 +905,29 @@ class FetLifeProfile extends FetLifeContent {
         return $this->transformAvatarURL($this->avatar_url, $size);
     }
 
+    public function getEvents () {
+        return $this->events;
+    }
+    public function getEventsGoingTo () {
+        $r = array();
+        foreach ($this->events_going as $id) {
+            foreach ($this->events as $x) {
+                if ($id == $x->id) {
+                    $r[] = $x;
+                }
+            }
+        }
+        return $r;
+    }
     public function getGroups () {
         return $this->groups;
     }
     public function getGroupsLead () {
         $r = array();
-        foreach ($this->groups_lead as $gid) {
-            foreach ($this->groups as $group) {
-                if ($gid == $group->id) {
-                    $r[] = $group;
+        foreach ($this->groups_lead as $id) {
+            foreach ($this->groups as $x) {
+                if ($id == $x->id) {
+                    $r[] = $x;
                 }
             }
         }
@@ -931,12 +964,19 @@ class FetLifeProfile extends FetLifeContent {
             }
         }
 
-        // Parse out group lead info
-        $gx = $this->usr->parseGroupsInfo($doc, true); // groups lead
-        $ret['groups_lead'] = $gx->groups_lead;
-        $ret['groups'] = $gx->groups; // empty if none
-        $gx = $this->usr->parseGroupsInfo($doc, false); // groups member of
-        $ret['groups'] = array_merge($ret['groups'], $gx->groups);
+        // Parse out event info
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', true);
+        $ret['events_going'] = $x->item_ids;
+        $ret['events'] = $x->items;
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', false);
+        $ret['events'] = array_merge($ret['events'], $x->items);
+
+        // Parse out group info
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', true);
+        $ret['groups_lead'] = $x->item_ids;
+        $ret['groups'] = $x->items;
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', false);
+        $ret['groups'] = array_merge($ret['groups'], $x->items);
 
         return $ret;
     }
