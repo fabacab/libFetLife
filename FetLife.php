@@ -655,25 +655,33 @@ class FetLifeUser extends FetLife {
 /**
  * Base class for various content items within FetLife.
  */
-class FetLifeContent extends FetLife {
+abstract class FetLifeContent extends FetLife {
     var $usr; // Associated FetLifeUser object.
     var $id;
     var $content; // DOMElement object. Use `getContentHtml()` to get as string.
     var $dt_published;
     var $creator;
 
+    function __construct ($arr_param) {
+        // TODO: Rewrite this a bit more defensively.
+        foreach ($arr_param as $k => $v) {
+            $this->$k = $v;
+        }
+    }
+
+    abstract public function getUrl();
+
     // Return the full URL, with fragment identifier.
-    // Child classes should define their own getUrl() method!
-    // TODO: Should this become an abstract class to enforce his contract?
+    // TODO: Should this become an abstract class to enforce this contract?
     //       If so, what should be done with the class variables? They'll
     //       get changed to be class constants, which may not be acceptable.
-    function getPermalink () {
+    public function getPermalink () {
         return self::base_url . $this->getUrl();
     }
 
     // Fetches and fills in the remainder of the object's data.
     // For this to work, child classes must define their own parseHtml() method.
-    function populate () {
+    public function populate () {
         $resp = $this->usr->connection->doHttpGet($this->getUrl());
         $data = $this->parseHtml($resp['body']);
         foreach ($data as $k => $v) {
@@ -681,7 +689,7 @@ class FetLifeContent extends FetLife {
         }
     }
 
-    function getContentHtml () {
+    public function getContentHtml () {
         $html = '';
         $doc = new DOMDocument();
         foreach ($this->content->childNodes as $node) {
@@ -703,15 +711,8 @@ class FetLifeWriting extends FetLifeContent {
     // TODO: Implement "love" fetching?
     var $loves;
 
-    function FetLifeWriting ($arr_param) {
-        // TODO: Rewrite this a bit more defensively.
-        foreach ($arr_param as $k => $v) {
-            $this->$k = $v;
-        }
-    }
-
     // Returns the server-relative URL of the profile.
-    function getUrl () {
+    public function getUrl () {
         return '/users/' . $this->creator->id . '/posts/' . $this->id;
     }
 
@@ -758,14 +759,7 @@ class FetLifePicture extends FetLifeContent {
     var $thumb_src; // The fully-qualified URL of the thumbnail.
     var $comments;
 
-    function FetLifePicture ($arr_param) {
-        // TODO: Rewrite this a bit more defensively.
-        foreach ($arr_param as $k => $v) {
-            $this->$k = $v;
-        }
-    }
-
-    function getUrl () {
+    public function getUrl () {
         return "/users/{$this->creator->id}/pictures/{$this->id}";
     }
 
@@ -796,14 +790,7 @@ class FetLifeComment extends FetLifeContent {
     var $id;
     var $creator;
 
-    function FetLifeComment ($arr_param) {
-        // TODO: Rewrite this a bit more defensively.
-        foreach ($arr_param as $k => $v) {
-            $this->$k = $v;
-        }
-    }
-
-    function getUrl () {
+    public function getUrl () {
         return parent::getUrl() . '#' . $this->getContentType() . "_comment_{$this->id}";
     }
 
@@ -835,16 +822,13 @@ class FetLifeProfile extends FetLifeContent {
     var $num_friends; // Number of friends displayed on their profile.
     // TODO: etc...
 
-    function FetLifeProfile ($arr_param) {
+    function __construct ($arr_param) {
+        parent::__construct($arr_param);
         unset($this->creator); // Profile can't have a creator; it IS a creator.
-        // TODO: Rewrite this a bit more defensively.
-        foreach ($arr_param as $k => $v) {
-            $this->$k = $v;
-        }
     }
 
     // Returns the server-relative URL of the profile.
-    function getUrl () {
+    public function getUrl () {
         return '/users/' . $this->id;
     }
 
@@ -853,7 +837,7 @@ class FetLifeProfile extends FetLifeContent {
      *
      * @param bool $named If true, returns the canonical URL by nickname.
      */
-    function getPermalink ($named = false) {
+    public function getPermalink ($named = false) {
         if ($named) {
             return self::base_url . "/{$this->nickname}";
         } else {
@@ -923,8 +907,13 @@ class FetLifeStatus extends FetLifeContent {
     var $text;
     var $url;
 
+    // TODO
     function __construct ($str) {
         $this->text = $str;
+    }
+
+    // TODO
+    public function getUrl () {
     }
 }
 
@@ -949,26 +938,9 @@ class FetLifeEvent extends FetLifeContent {
     var $going;      // An array of FetLifeProfile objects who are RSVP'ed "Yes."
     var $maybegoing; // An array of FetLifeProfile objects who are RSVP'ed "Maybe."
 
-    /**
-     * Creates a new FetLifeEvent object.
-     *
-     * @param array $arr_param Associative array of member => value pairs.
-     */
-    function FetLifeEvent ($arr_param) {
-        // TODO: Rewrite this a bit more defensively.
-        foreach ($arr_param as $k => $v) {
-            $this->$k = $v;
-        }
-    }
-
     // Returns the server-relative URL of the event.
-    function getUrl () {
+    public function getUrl () {
         return '/events/' . $this->id;
-    }
-
-    // Returns the fully-qualified URL of the event.
-    function getPermalink () {
-        return self::base_url . $this->getUrl();
     }
 
     /**
