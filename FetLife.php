@@ -623,6 +623,7 @@ class FetLifeUser extends FetLife {
                     $ret->item_ids[] = $id;
                 }
                 $ret->items[] = new $obj(array(
+                    'usr' => $this,
                     'id' => $id,
                     'name' => $el_x->firstChild->textContent
                 ));
