@@ -38,12 +38,12 @@ class FetLife {
  * Handles network connections, logins, logouts, etc.
  */
 class FetLifeConnection extends FetLife {
-    var $usr;        // Associated FetLifeUser object.
-    var $cookiejar;  // File path to cookies for this user's connection.
-    var $csrf_token; // The current CSRF authenticity token to use for doing HTTP POSTs.
-    var $cur_page;   // Source code of the last page retrieved.
-    var $proxy_url;  // The url of the proxy to use.
-    var $proxy_type; // The type of the proxy to use.
+    public $usr;        // Associated FetLifeUser object.
+    public $cookiejar;  // File path to cookies for this user's connection.
+    public $csrf_token; // The current CSRF authenticity token to use for doing HTTP POSTs.
+    public $cur_page;   // Source code of the last page retrieved.
+    public $proxy_url;  // The url of the proxy to use.
+    public $proxy_type; // The type of the proxy to use.
 
     function __construct ($usr) {
         $this->usr = $usr;
@@ -231,12 +231,12 @@ class FetLifeConnection extends FetLife {
  * A FetLife User. This class mimics the logged-in user, performing actions, etc.
  */
 class FetLifeUser extends FetLife {
-    var $nickname;
-    var $password;
-    var $id;
-    var $email_address;
-    var $connection; // A FetLifeConnection object to handle network requests.
-    var $friends;    // An array (eventually, of FetLifeProfile objects).
+    public $nickname;
+    public $password;
+    public $id;
+    public $email_address;
+    public $connection; // A FetLifeConnection object to handle network requests.
+    public $friends;    // An array (eventually, of FetLifeProfile objects).
 
     function __construct ($nickname, $password) {
         $this->nickname = $nickname;
@@ -703,11 +703,11 @@ class FetLifeUser extends FetLife {
  * Base class for various content items within FetLife.
  */
 abstract class FetLifeContent extends FetLife {
-    var $usr; // Associated FetLifeUser object.
-    var $id;
-    var $content; // DOMElement object. Use `getContentHtml()` to get as string.
-    var $dt_published;
-    var $creator;
+    public $usr; // Associated FetLifeUser object.
+    public $id;
+    public $content; // DOMElement object. Use `getContentHtml()` to get as string.
+    public $dt_published;
+    public $creator;
 
     function __construct ($arr_param) {
         // TODO: Rewrite this a bit more defensively.
@@ -751,12 +751,12 @@ abstract class FetLifeContent extends FetLife {
  * A FetLife Writing published by a user.
  */
 class FetLifeWriting extends FetLifeContent {
-    var $title;
-    var $category;
-    var $privacy;
-    var $comments; // An array of FetLifeComment objects.
+    public $title;
+    public $category;
+    public $privacy;
+    public $comments; // An array of FetLifeComment objects.
     // TODO: Implement "love" fetching?
-    var $loves;
+    public $loves;
 
     // Returns the server-relative URL of the profile.
     public function getUrl () {
@@ -802,9 +802,9 @@ class FetLifeWriting extends FetLifeContent {
  * A FetLife Picture page. (Not the <img/> itself.)
  */
 class FetLifePicture extends FetLifeContent {
-    var $src;       // The fully-qualified URL of the image itself.
-    var $thumb_src; // The fully-qualified URL of the thumbnail.
-    var $comments;
+    public $src;       // The fully-qualified URL of the image itself.
+    public $thumb_src; // The fully-qualified URL of the thumbnail.
+    public $comments;
 
     public function getUrl () {
         return "/users/{$this->creator->id}/pictures/{$this->id}";
@@ -834,8 +834,8 @@ class FetLifePicture extends FetLifeContent {
  * Generic class for comments on FetLife contents.
  */
 class FetLifeComment extends FetLifeContent {
-    var $id;
-    var $creator;
+    public $id;
+    public $creator;
 
     public function getUrl () {
         return parent::getUrl() . '#' . $this->getContentType() . "_comment_{$this->id}";
@@ -1003,8 +1003,8 @@ class FetLifeProfile extends FetLifeContent {
  */
 class FetLifeStatus extends FetLifeContent {
     const MAX_STATUS_LENGTH = 200; // Character count.
-    var $text;
-    var $url;
+    public $text;
+    public $url;
 
     // TODO
     function __construct ($str) {
@@ -1021,21 +1021,20 @@ class FetLifeStatus extends FetLifeContent {
  */
 class FetLifeEvent extends FetLifeContent {
     // See event creation form at https://fetlife.com/events/new
-    var $usr;        // Associated FetLifeUser object.
-    var $id;
-    var $title;
-    var $tagline;
-    var $dtstart;
-    var $dtend;
-    var $venue_name;    // Text of the venue name, if provided.
-    var $venue_address; // Text of the venue address, if provided.
-    var $adr = array(); // Array of elements matching adr microformat.
-    var $cost;
-    var $dress_code;
-    var $description;
-    var $created_by; // A FetLifeProfile who created the event.
-    var $going;      // An array of FetLifeProfile objects who are RSVP'ed "Yes."
-    var $maybegoing; // An array of FetLifeProfile objects who are RSVP'ed "Maybe."
+    public $id;
+    public $title;
+    public $tagline;
+    public $dtstart;
+    public $dtend;
+    public $venue_name;    // Text of the venue name, if provided.
+    public $venue_address; // Text of the venue address, if provided.
+    public $adr = array(); // Array of elements matching adr microformat.
+    public $cost;
+    public $dress_code;
+    public $description;
+    public $created_by; // A FetLifeProfile who created the event.
+    public $going;      // An array of FetLifeProfile objects who are RSVP'ed "Yes."
+    public $maybegoing; // An array of FetLifeProfile objects who are RSVP'ed "Maybe."
 
     // Returns the server-relative URL of the event.
     public function getUrl () {
