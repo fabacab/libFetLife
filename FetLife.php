@@ -531,7 +531,7 @@ class FetLifeUser extends FetLife {
      * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
      * @return FetLifeProfile A FetLifeProfile object.
      */
-    function parseProfileHeader ($doc) {
+    public function parseProfileHeader ($doc) {
         $hdr = $doc->getElementById('profile_header');
         $el  = $hdr->getElementsByTagName('img')->item(0);
         $author_name   = $el->attributes->getNamedItem('alt')->value;
@@ -582,6 +582,36 @@ class FetLifeUser extends FetLife {
                 'content' => $comment->getElementsByTagName('div')->item(0)
             ));
         }
+        return $ret;
+    }
+    /**
+     * Helper function to parse out info from a profile's group lists.
+     *
+     * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
+     * @param bool $is_leader Add to group leadership info, too?
+     * @return Object An object of arrays of group leadership IDs and FetLifeGroup objects.
+     */
+    public function parseGroupsInfo ($doc, $is_leader = false) {
+        $ret = new stdClass();
+        $ret->groups = array();
+        $ret->groups_lead = array();
+
+        $str = ($is_leader) ? 'Groups I lead' : 'Groups member of';
+
+        if ($el = $this->doXPathQuery("//h4[starts-with(normalize-space(.), '$str')]/following-sibling::ul[1]", $doc)) {
+            foreach ($el->item(0)->getElementsByTagName('a') as $el_x) {
+                // explode() to extract the group number from like: href="/groups/1234"
+                $gid = explode('/', $el_x->getAttribute('href'))[2];
+                if ($is_leader) {
+                    $ret->groups_lead[] = $gid;
+                }
+                $ret->groups[] = new FetLifeGroup(array(
+                    'id' => $gid,
+                    'name' => $el_x->nodeValue
+                ));
+            }
+        }
+
         return $ret;
     }
 
@@ -811,16 +841,23 @@ class FetLifeComment extends FetLifeContent {
  * Profile information for a FetLife User.
  */
 class FetLifeProfile extends FetLifeContent {
-    var $age;
-    var $avatar_url;
-    var $gender;
-    var $id;
-    var $location; // TODO: Split this up?
-    var $nickname;
-    var $role;
-    var $paying_account;
-    var $num_friends; // Number of friends displayed on their profile.
-    // TODO: etc...
+    public $age;
+    public $avatar_url;
+    public $gender;
+    public $id;
+    public $location; // TODO: Split this up?
+    public $nickname;
+    public $role;
+    public $relationships; // TODO
+    public $orientation;
+    public $paying_account;
+    public $num_friends; //< Number of friends displayed on their profile.
+    public $groups;      //< Array of FetLifeGroup objects
+    public $bio;         //< Whatever's in the "About Me" section
+    public $websites;    //< An array of URLs listed by the profile.
+    public $fetishes;    //< An array of FetLifeFetish objects, eventually
+
+    protected $groups_lead; //< Array of group IDs for which this profile is a group leader.
 
     function __construct ($arr_param) {
         parent::__construct($arr_param);
@@ -845,8 +882,23 @@ class FetLifeProfile extends FetLifeContent {
         }
     }
 
-    function getAvatarURL ($size = 60) {
+    public function getAvatarURL ($size = 60) {
         return $this->transformAvatarURL($this->avatar_url, $size);
+    }
+
+    public function getGroups () {
+        return $this->groups;
+    }
+    public function getGroupsLead () {
+        $r = array();
+        foreach ($this->groups_lead as $gid) {
+            foreach ($this->groups as $group) {
+                if ($gid == $group->id) {
+                    $r[] = $group;
+                }
+            }
+        }
+        return $r;
     }
 
     // Given some HTML of a FetLife Profile page, returns an array of its data.
@@ -878,6 +930,13 @@ class FetLifeProfile extends FetLifeContent {
                 $ret['num_friends'] = 0;
             }
         }
+
+        // Parse out group lead info
+        $gx = $this->usr->parseGroupsInfo($doc, true); // groups lead
+        $ret['groups_lead'] = $gx->groups_lead;
+        $ret['groups'] = $gx->groups; // empty if none
+        $gx = $this->usr->parseGroupsInfo($doc, false); // groups member of
+        $ret['groups'] = array_merge($ret['groups'], $gx->groups);
 
         return $ret;
     }
@@ -994,5 +1053,37 @@ class FetLifeEvent extends FetLifeContent {
             ));
         }
         return $ret;
+    }
+}
+
+/**
+ * A FetLife Group.
+ */
+class FetLifeGroup extends FetLifeContent {
+    public $id;           //< Group ID number, for URLs, etc.
+    public $name;         //< Group display name, its title, etc.
+    public $members;      //< An array of FetLifeProfile objects.
+    public $about;        //< The group's "About & Rules" contents.
+    public $num_posts;    //< The number of discussions, as reported on the about page.
+    public $num_comments; //< The number of comments, as reported on the about page.
+    public $discussions;  //< An array of FetLifeGroupDiscussion objects.
+    public $last_touch;   //< Timestamp of the "last comment" line item, to estimate group activity.
+    public $started_on;   //< Timestamp of the "started on" date, as reported on the about page.
+
+    public function getUrl() {
+        return '/groups/' . $this->id;
+    }
+
+    private function parseGroupHtml ($html) {
+        // TODO
+    }
+}
+
+// TODO
+class FetLifeGroupDiscussion extends FetLifeContent {
+    public $id;
+
+    public function getUrl() {
+        return parent::getUrl() . '/group_posts/' . $this->id;
     }
 }

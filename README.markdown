@@ -33,7 +33,9 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     $profile->age;
     $profile->gender;
     $profile->role;
-    $profile->isPayingAccount(); // true
+    $profile->isPayingAccount(); // true if the profile has a "supporter" badge
+    $profile->getGroups();       // array of FetLifeGroup objects
+    $profile->getGroupsLead();   // array of FetLifeGroups the user is a leader of
     // etc.
 
     // Get a user's friends list as an array of FetLifeProfile objects.
@@ -65,7 +67,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // Or get just the first couple pages.
     $events_partial = $FL->getUpcomingEventsInLocation('cities/5898', 2); // Only 2 pages.
 
-    //Works the same way as the two previous methods do but for people in a city
+    // Works the same way as the two previous methods do but for people in a city
     $local_kinksters = $FL->getKinkstersInLocation('cities/5898'); // Get all kinksters in Balitmore, MD.
 
     // FetLifeEvent objects are instantiated from minimal data.
