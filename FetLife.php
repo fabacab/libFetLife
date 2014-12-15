@@ -835,7 +835,6 @@ class FetLifePicture extends FetLifeContent {
  * Generic class for comments on FetLife contents.
  */
 class FetLifeComment extends FetLifeContent {
-    public $id;
     public $creator;
 
     public function getUrl () {
@@ -862,7 +861,6 @@ class FetLifeProfile extends FetLifeContent {
     public $age;
     public $avatar_url;
     public $gender;
-    public $id;
     public $location; // TODO: Split this up?
     public $nickname;
     public $role;
@@ -1022,7 +1020,6 @@ class FetLifeStatus extends FetLifeContent {
  */
 class FetLifeEvent extends FetLifeContent {
     // See event creation form at https://fetlife.com/events/new
-    public $id;
     public $title;
     public $tagline;
     public $dtstart;
@@ -1100,7 +1097,6 @@ class FetLifeEvent extends FetLifeContent {
  * A FetLife Group.
  */
 class FetLifeGroup extends FetLifeContent {
-    public $id;           //< Group ID number, for URLs, etc.
     public $name;         //< Group display name, its title, etc.
     public $members;      //< An array of FetLifeProfile objects.
     public $about;        //< The group's "About & Rules" contents.
@@ -1121,8 +1117,6 @@ class FetLifeGroup extends FetLifeContent {
 
 // TODO
 class FetLifeGroupDiscussion extends FetLifeContent {
-    public $id;
-
     public function getUrl() {
         return parent::getUrl() . '/group_posts/' . $this->id;
     }
