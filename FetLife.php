@@ -1065,6 +1065,7 @@ class FetLifeEvent extends FetLifeContent {
         $doc = new DOMDocument();
         @$doc->loadHTML($html);
         $ret = array();
+        $ret['title'] = $this->usr->doXPathQuery('//h1[@itemprop="name"]', $doc)->item(0)->textContent;
         $ret['tagline'] = $this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0)->nodeValue;
         $ret['dtstart'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "startDate")]/@content', $doc)->item(0)->nodeValue;
         $ret['dtend'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "endDate")]/@content', $doc)->item(0)->nodeValue;
