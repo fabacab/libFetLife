@@ -615,17 +615,18 @@ class FetLifeUser extends FetLife {
         }
         $obj = 'FetLife' . ucfirst($obj_type);
 
-        if ($el = $this->doXPathQuery("//h4[starts-with(normalize-space(.), '$str')]/following-sibling::ul[1]", $doc)) {
-            foreach ($el->item(0)->getElementsByTagName('a') as $el_x) {
+        $els = $this->doXPathQuery("//h4[starts-with(normalize-space(.), '$str')]/following-sibling::ul[1]", $doc);
+        if ($els->length) {
+            foreach ($els->item(0)->getElementsByTagName('a') as $el) {
                 // explode() to extract the group number from like: href="/groups/1234"
-                $id = $this->parseIdFromUrl($el_x->getAttribute('href'));
+                $id = $this->parseIdFromUrl($el->getAttribute('href'));
                 if ($is_leader) {
                     $ret->item_ids[] = $id;
                 }
                 $ret->items[] = new $obj(array(
                     'usr' => $this,
                     'id' => $id,
-                    'name' => $el_x->firstChild->textContent
+                    'name' => $el->firstChild->textContent
                 ));
             }
         }
@@ -954,7 +955,9 @@ class FetLifeProfile extends FetLifeContent {
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
             $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
         }
-        $ret['paying_account'] = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)->nodeValue;
+        if ($el = $this->usr->doXPathQuery('//*[contains(@class, "donation_badge")]', $doc)->item(0)) {
+            $ret['paying_account'] = $el->nodeValue;
+        }
         if ($el = $doc->getElementsByTagName('h4')->item(0)) {
             if ($el_x = $el->getElementsByTagName('span')->item(0)) {
                 $ret['num_friends'] = (int) str_replace(',', '', substr($el_x->nodeValue, 1, -1)); // Strip enclosing parenthesis and commas for results like "(1,057)"
