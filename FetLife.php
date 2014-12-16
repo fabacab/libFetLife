@@ -518,7 +518,10 @@ class FetLifeUser extends FetLife {
             $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $u['id'] = current(array_reverse(explode('/', $u['url'])));
             list(, $u['age'], $u['gender'], $u['role']) = $this->parseAgeGenderRole($v->getElementsByTagName('span')->item(1)->nodeValue);
-            $u['location'] = $v->getElementsByTagName('em')->item(0)->nodeValue;
+            $u['location'] = trim($v->getElementsByTagName('em')->item(0)->nodeValue);
+            $pieces = array_map('trim', explode(',', $u['location']));
+            $u['adr']['locality'] = $pieces[0];
+            $u['adr']['region'] = $pieces[1];
             $ret[] = new FetLifeProfile($u);
         }
         return $ret;
@@ -863,6 +866,7 @@ class FetLifeProfile extends FetLifeContent {
     public $avatar_url;
     public $gender;
     public $location; // TODO: Split this up?
+    public $adr;
     public $nickname;
     public $role;
     public $relationships; // TODO
@@ -951,7 +955,19 @@ class FetLifeProfile extends FetLifeContent {
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
-        $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
+        $el = $doc->getElementsByTagName('em')->item(0);
+        $ret['location'] = $el->nodeValue;
+        $els = $el->getElementsByTagName('a');
+        if (3 === $els->length) {
+            $ret['adr']['locality'] = $els->item(0)->nodeValue;
+            $ret['adr']['region'] = $els->item(1)->nodeValue;
+            $ret['adr']['country-name'] = $els->item(2)->nodeValue;
+        } else if (2 === $els->length) {
+            $ret['adr']['region'] = $els->item(0)->nodeValue;
+            $ret['adr']['country-name'] = $els->item(1)->nodeValue;
+        } else if (1 === $els->length) {
+            $ret['adr']['country-name'] = $els->item(0)->nodeValue;
+        }
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
             $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
         }
