@@ -112,6 +112,7 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
 
 * [FetLife WordPress eXtended RSS Generator](https://github.com/meitar/fetlife2wxr)
 * [FetLife iCalendar](https://github.com/meitar/fetlife-icalendar/)
+* [FetLife Maltego](https://github.com/meitar/fetlife-maltego/)
 * [FetLife Export](https://github.com/meitar/fetlife-export/)
 * [FetLife Bridge](https://github.com/meitar/fetlife-bridge/)
 
