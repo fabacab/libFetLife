@@ -705,11 +705,11 @@ class FetLifeUser extends FetLife {
  * Base class for various content items within FetLife.
  */
 abstract class FetLifeContent extends FetLife {
-    public $usr; // Associated FetLifeUser object.
+    public $usr; //< Associated FetLifeUser object.
     public $id;
-    public $content; // DOMElement object. Use `getContentHtml()` to get as string.
+    public $content; //< DOMElement object. Use `getContentHtml()` to get as string.
     public $dt_published;
-    public $creator;
+    public $creator; //< A FetLifeProfile who created the content
 
     function __construct ($arr_param) {
         // TODO: Rewrite this a bit more defensively.
@@ -1033,7 +1033,6 @@ class FetLifeEvent extends FetLifeContent {
     public $cost;
     public $dress_code;
     public $description;
-    public $created_by; // A FetLifeProfile who created the event.
     public $going;      // An array of FetLifeProfile objects who are RSVP'ed "Yes."
     public $maybegoing; // An array of FetLifeProfile objects who are RSVP'ed "Maybe."
 
@@ -1086,7 +1085,7 @@ class FetLifeEvent extends FetLifeContent {
         //       See also http://www.php.net/manual/en/class.domelement.php#101243
         $ret['description'] = $this->usr->doXPathQuery('//*[contains(@class, "description")]', $doc)->item(0)->nodeValue;
         if ($creator_link = $this->usr->doXPathQuery('//h3[text()="Created by"]/following-sibling::ul//a', $doc)->item(0)) {
-            $ret['created_by'] = new FetLifeProfile(array(
+            $ret['creator'] = $ret['created_by'] = new FetLifeProfile(array( // both for backwards compatibility
                 'url' => $creator_link->attributes->getNamedItem('href')->value,
                 'id' => current(array_reverse(explode('/', $creator_link->attributes->getNamedItem('href')->value))),
                 'avatar_url' => $creator_link->getElementsByTagName('img')->item(0)->attributes->getNamedItem('src')->value,
