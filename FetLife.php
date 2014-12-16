@@ -1041,6 +1041,11 @@ class FetLifeEvent extends FetLifeContent {
         return '/events/' . $this->id;
     }
 
+    public function getParticipants () {
+        $r = array($this->creator);
+        return array_merge($r, $this->going, $this->maybegoing);
+    }
+
     /**
      * Fetches and fills the remainder of the Event's data.
      *

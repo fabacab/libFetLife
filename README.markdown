@@ -86,6 +86,10 @@ To use `libFetLife`, include it in your project and instantiate a new `FetLifeUs
     // etc...
 
     // Attendee lists are arrays of FetLifeProfile objects, same as friends lists.
+    // You can collect a list of all participants
+    $everyone = $events[2]->getParticipants();
+
+    // or interact with the RSVP lists individually
     foreach ($events[2]->going as $profile) {
         print $profile->nickname; // FetLife names of people who RSVP'd "Going."
     }
