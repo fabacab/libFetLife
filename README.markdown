@@ -131,6 +131,11 @@ FetLife events can be queried much like profiles:
     }
     print "There are $i Switches and $y male-identified people maybe going to {$events[2]->title}.";
 
+You can also perform basic searches:
+
+    $kinksters = $FL->searchKinksters('maymay'); // All Kinksters whose username contains the query.
+    $partial_kinksters = $FL->searchKinksters('maymay', 5) // only first 5 pages of above results.
+
 [Patches welcome](https://github.com/meitar/libFetLife/issues/new). :)
 
 ## Projects that use libFetLife

@@ -437,6 +437,23 @@ class FetLifeUser extends FetLife {
         return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
     }
 
+    public function searchKinksters ($query, $pages = 0) {
+        return $this->getUsersInListing('/search/kinksters', $pages, "q=$query");
+    }
+
+    /**
+     * Performs a quick search of "everything" on FetLife, but only returns the first page of results.
+     * To get more information, do a specific search by object type.
+     *
+     * @param string $query The search query.
+     * @return object $results Search results by type.
+     */
+    public function search ($query) {
+        $results = new stdClass();
+        $results->kinksters = $this->getUsersInListing('/search', $pages = 1, "q=$query");
+        return $results;
+    }
+
     /**
      * Gets a single event.
      *
@@ -468,14 +485,22 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url The URL of the paginated set.
      * @param int $page The number of the page in the set.
+     * @param string $qs A query string to append to the URL.
      * @return array The result of the HTTP request.
      * @see FetLifeConnection::doHttpRequest
      */
-    private function loadPage ($url, $page = 1) {
+    // TODO: This should really be a bit more sensible.
+    private function loadPage ($url, $page = 1, $qs = '') {
         if ($page > 1) {
-            $url .= "?page=$page";
+            $url .= "?page=$page&";
+        } else if (!empty($qs)) {
+            $url .= '?';
         }
-        return $this->connection->doHttpGet($url);
+        if (!empty($qs)) {
+            $url .= $qs;
+        }
+        $res = $this->connection->doHttpGet($url);
+        return $res;
     }
 
     /**
@@ -506,10 +531,11 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url_base The base URL for the listing pages.
      * @param int $pages The number of pages to iterate through.
+     * @param string $qs A query string to append to the URL.
      * @return array Array of FetLifeProfile objects from the listing's "user_in_list" elements.
      */
-    private function getUsersInListing ($url_base, $pages) {
-        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages);
+    private function getUsersInListing ($url_base, $pages, $qs = '') {
+        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages, $qs);
         $ret = array();
         foreach ($items as $v) {
             $u = array();
@@ -525,6 +551,15 @@ class FetLifeUser extends FetLife {
             $ret[] = new FetLifeProfile($u);
         }
         return $ret;
+    }
+
+    private function parseItemsInListing ($xpath, $doc) {
+        $items = array();
+        $entries = $this->doXPathQuery($xpath, $doc);
+        foreach ($entries as $entry) {
+            $items[] = $entry;
+        }
+        return $items;
     }
 
     // TODO: Perhaps these utility functions ought go in their own parser class?
@@ -666,11 +701,16 @@ class FetLifeUser extends FetLife {
 
     /**
      * Iterates through a multi-page listing of items that match an XPath query.
+     *
+     * @param string $xpath An XPath string for scraping the desired HTML elements.
+     * @param string $url_base The base URL of the possibly-paginated page to scrape.
+     * @param int $pages The number of pages to iterate through.
+     * @param string $qs A query string to append to the base URL.
      */
-    private function getItemsInListing ($xpath, $url_base, $pages) {
+    private function getItemsInListing ($xpath, $url_base, $pages, $qs = '') {
         // Retrieve the first page.
         $cur_page = 1;
-        $x = $this->loadPage($url_base, $cur_page);
+        $x = $this->loadPage($url_base, $cur_page, $qs);
 
         $doc = new DOMDocument();
         @$doc->loadHTML($x['body']);
@@ -682,22 +722,14 @@ class FetLifeUser extends FetLife {
         }
 
         // Find and store items on this page.
-        $items = array();
-        $entries = $this->doXPathQuery($xpath, $doc);
-        foreach ($entries as $entry) {
-            $items[] = $entry;
-        }
+        $items = $this->parseItemsInListing($xpath, $doc);
 
         // Find and store items on remainder of pages.
         while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
             $cur_page++; // increment to get to next page
-            $x = $this->loadPage($url_base, $cur_page);
+            $x = $this->loadPage($url_base, $cur_page, $qs);
             @$doc->loadHTML($x['body']);
-            // Find and store friends on this page.
-            $entries = $this->doXPathQuery($xpath, $doc);
-            foreach ($entries as $entry) {
-                $items[] = $entry;
-            }
+            $items = array_merge($items, $this->parseItemsInListing($xpath, $doc));
         }
 
         return $items;
