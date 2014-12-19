@@ -367,7 +367,7 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
      * @return array $writings Array of FetLifeWritings objects.
      */
-    function getWritingsOf ($who = NULL, $pages = 0) {
+    public function getWritingsOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//article', "/users/$id/posts", $pages);
         $ret = array();
@@ -395,7 +395,7 @@ class FetLifeUser extends FetLife {
     /**
      * Retrieves a user's Pictures.
      */
-    function getPicturesOf ($who = NULL, $pages = 0) {
+    public function getPicturesOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//ul[contains(@class, "page")]/li', "/users/$id/pictures", $pages);
         $ret = array();
@@ -420,20 +420,20 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieve all (0).
      * @return array $members Array of DOMElement objects from the group's "user_in_list" elements.
      */
-    function getMembersOfGroup ($group_id, $pages = 0) {
+    public function getMembersOfGroup ($group_id, $pages = 0) {
         return $this->getUsersInListing("/groups/$group_id/group_memberships", $pages);
     }
 
-    function getKinkstersWithFetish($fetish_id, $pages = 0) {
+    public function getKinkstersWithFetish ($fetish_id, $pages = 0) {
         return $this->getUsersInListing("/fetishes/$fetish_id/kinksters", $pages);
     }
-    function getKinkstersGoingToEvent($event_id, $pages = 0) {
+    public function getKinkstersGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps", $pages);
     }
-    function getKinkstersMaybeGoingToEvent($event_id, $pages = 0) {
+    public function getKinkstersMaybeGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
     }
-    function getKinkstersInLocation($loc_str, $pages = 0) {
+    public function getKinkstersInLocation ($loc_str, $pages = 0) {
         return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
     }
 
