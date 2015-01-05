@@ -731,13 +731,13 @@ class FetLifeUser extends FetLife {
     }
 
     /**
-    * Iterates through a multi-page listing of items that match an XPath query.
-    *
-    * @param string $xpath An XPath string for scraping the desired HTML elements.
-    * @param string $url_base The base URL of the possibly-paginated page to scrape.
-    * @param int $pages The number of pages to iterate through.
-    * @param string $qs A query string to append to the base URL.
-    */
+     * Iterates through a multi-page listing of items that match an XPath query.
+     *
+     * @param string $xpath An XPath string for scraping the desired HTML elements.
+     * @param string $url_base The base URL of the possibly-paginated page to scrape.
+     * @param int $pages The number of pages to iterate through.
+     * @param string $qs A query string to append to the base URL.
+     */
     private function getItemsInListing ($xpath, $url_base, $pages, $qs = '') {
         // Retrieve the first page.
         $cur_page = 1;
