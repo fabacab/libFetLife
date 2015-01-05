@@ -36,7 +36,7 @@ if (!defined('FL_SESSIONS_DIR')) {
  */
 class FetLife {
     const base_url = 'https://fetlife.com'; // No trailing slash!
-    public $isSecure;
+    public $isSecure; // To indicate if the password has been encrypted
 }
 
 /**
@@ -63,12 +63,12 @@ class FetLifeConnection extends FetLife {
     }
 
     private function scrapeProxyURL () {
-        $ch = curl_init(
-            'http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=1000&reliability=9000'
+        $ch = curl_init('http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=&reliability=5000'
         );
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $html = curl_exec($ch);
         curl_close($ch);
+
         $dom = new DOMDocument();
         @$dom->loadHTML($html);
         $rows = $dom->getElementsByTagName('tr');
@@ -176,7 +176,7 @@ class FetLifeConnection extends FetLife {
         $this->setCsrfToken($this->findCsrfToken($r['body'])); // Update on each request.
         $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
-        $this->cur_page = htmlentities($this->cur_page, ENT_COMPAT, 'UTF-8');
+        $this->cur_page = htmlentities($this->cur_page, ENT_COMPAT, 'UTF-8'); // for debugging - no need to keep it encoded AFAIK
         return $r;
     }
 
@@ -188,7 +188,7 @@ class FetLifeConnection extends FetLife {
      */
     public function findUserId ($str) {
         $matches = array();
-        preg_match('/FetLife.currentUser.id          = ([0-9]+);/', $str, $matches);
+        preg_match('/FetLife.currentUser.id          = ([0-9]+);/', $str, $matches); //Fix regex
         return $matches[1];
     }
 
@@ -371,7 +371,7 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
      * @return array $writings Array of FetLifeWritings objects.
      */
-    function getWritingsOf ($who = NULL, $pages = 0) {
+    public function getWritingsOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//article', "/users/$id/posts", $pages);
         $ret = array();
@@ -419,7 +419,7 @@ class FetLifeUser extends FetLife {
     /**
      * Retrieves a user's Pictures.
      */
-    function getPicturesOf ($who = NULL, $pages = 0) {
+    public function getPicturesOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//ul[contains(@class, "page")]/li', "/users/$id/pictures", $pages);
         $ret = array();
@@ -444,23 +444,39 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieve all (0).
      * @return array $members Array of DOMElement objects from the group's "user_in_list" elements.
      */
-    function getMembersOfGroup ($group_id, $pages = 0) {
+    public function getMembersOfGroup ($group_id, $pages = 0) {
         return $this->getUsersInListing("/groups/$group_id/group_memberships", $pages);
     }
 
-    function getKinkstersWithFetish ($fetish_id, $pages = 0) {
+    public function getKinkstersWithFetish ($fetish_id, $pages = 0) {
         return $this->getUsersInListing("/fetishes/$fetish_id/kinksters", $pages);
     }
-    function getKinkstersGoingToEvent ($event_id, $pages = 0) {
+    public function getKinkstersGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps", $pages);
     }
-    function getKinkstersMaybeGoingToEvent ($event_id, $pages = 0) {
+    public function getKinkstersMaybeGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
     }
-    function getKinkstersInLocation ($loc_str, $pages = 0) {
+    public function getKinkstersInLocation ($loc_str, $pages = 0) {
         return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
     }
 
+    public function searchKinksters ($query, $pages = 0) {
+        return $this->getUsersInListing('/search/kinksters', $pages, "q=$query");
+    }
+
+    /**
+     * Performs a quick search of "everything" on FetLife, but only returns the first page of results.
+     * To get more information, do a specific search by object type.
+     *
+     * @param string $query The search query.
+     * @return object $results Search results by type.
+     */
+    public function search ($query) {
+        $results = new stdClass();
+        $results->kinksters = $this->getUsersInListing('/search', $pages = 1, "q=$query");
+        return $results;
+    }
     /**
      * Gets a single event.
      *
@@ -492,14 +508,22 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url The URL of the paginated set.
      * @param int $page The number of the page in the set.
+     * @param string $qs A query string to append to the URL.
      * @return array The result of the HTTP request.
      * @see FetLifeConnection::doHttpRequest
      */
-    private function loadPage ($url, $page = 1) {
+    private function loadPage ($url, $page = 1, $qs = '') {
         if ($page > 1) {
-            $url .= "?page=$page";
+            $url .= "?page=$page&";
+        } else if (!empty($qs)) {
+            $url .= '?';
         }
-        return $this->connection->doHttpGet($url);
+        if (!empty($qs)) {
+            $url .= $qs;
+
+        }
+        $res = $this->connection->doHttpGet($url);
+        return $res;
     }
 
     /**
