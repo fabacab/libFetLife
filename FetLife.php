@@ -63,7 +63,8 @@ class FetLifeConnection extends FetLife {
     }
 
     private function scrapeProxyURL () {
-        $ch = curl_init('http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=&reliability=5000'
+        $ch = curl_init(
+            'http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=&reliability=5000'
         );
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $html = curl_exec($ch);
@@ -171,11 +172,13 @@ class FetLifeConnection extends FetLife {
             curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
             curl_setopt($ch, CURLOPT_PROXYTYPE, $this->proxy_type);
         }
+
         $r = array();
         $this->cur_page = $r['body'] = curl_exec($ch); // Grab FetLife response body.
         $this->setCsrfToken($this->findCsrfToken($r['body'])); // Update on each request.
         $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
+
         $this->cur_page = htmlentities($this->cur_page, ENT_COMPAT, 'UTF-8'); // for debugging - no need to keep it encoded AFAIK
         return $r;
     }
@@ -477,6 +480,7 @@ class FetLifeUser extends FetLife {
         $results->kinksters = $this->getUsersInListing('/search', $pages = 1, "q=$query");
         return $results;
     }
+
     /**
      * Gets a single event.
      *
@@ -512,6 +516,7 @@ class FetLifeUser extends FetLife {
      * @return array The result of the HTTP request.
      * @see FetLifeConnection::doHttpRequest
      */
+    // TODO: This should really be a bit more sensible.
     private function loadPage ($url, $page = 1, $qs = '') {
         if ($page > 1) {
             $url .= "?page=$page&";
@@ -520,7 +525,6 @@ class FetLifeUser extends FetLife {
         }
         if (!empty($qs)) {
             $url .= $qs;
-
         }
         $res = $this->connection->doHttpGet($url);
         return $res;
@@ -554,10 +558,11 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url_base The base URL for the listing pages.
      * @param int $pages The number of pages to iterate through.
+     * @param string $qs A query string to append to the URL.
      * @return array Array of FetLifeProfile objects from the listing's "user_in_list" elements.
      */
-    private function getUsersInListing ($url_base, $pages) {
-        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages);
+    private function getUsersInListing ($url_base, $pages, $qs = '') {
+        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages, $qs);
         $ret = array();
         foreach ($items as $v) {
             $u = array();
@@ -566,10 +571,22 @@ class FetLifeUser extends FetLife {
             $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $u['id'] = current(array_reverse(explode('/', $u['url'])));
             list(, $u['age'], $u['gender'], $u['role']) = $this->parseAgeGenderRole($v->getElementsByTagName('span')->item(1)->nodeValue);
-            $u['location'] = $v->getElementsByTagName('em')->item(0)->nodeValue;
+            $u['location'] = trim($v->getElementsByTagName('em')->item(0)->nodeValue);
+            $pieces = array_map('trim', explode(',', $u['location']));
+            $u['adr']['locality'] = $pieces[0];
+            $u['adr']['region'] = $pieces[1];
             $ret[] = new FetLifeProfile($u);
         }
         return $ret;
+    }
+
+    private function parseItemsInListing ($xpath, $doc) {
+        $items = array();
+        $entries = $this->doXPathQuery($xpath, $doc);
+        foreach ($entries as $entry) {
+            $items[] = $entry;
+        }
+        return $items;
     }
 
     // TODO: Perhaps these utility functions ought go in their own parser class?
@@ -714,12 +731,17 @@ class FetLifeUser extends FetLife {
     }
 
     /**
-     * Iterates through a multi-page listing of items that match an XPath query.
-     */
-    private function getItemsInListing ($xpath, $url_base, $pages) {
+    * Iterates through a multi-page listing of items that match an XPath query.
+    *
+    * @param string $xpath An XPath string for scraping the desired HTML elements.
+    * @param string $url_base The base URL of the possibly-paginated page to scrape.
+    * @param int $pages The number of pages to iterate through.
+    * @param string $qs A query string to append to the base URL.
+    */
+    private function getItemsInListing ($xpath, $url_base, $pages, $qs = '') {
         // Retrieve the first page.
         $cur_page = 1;
-        $x = $this->loadPage($url_base, $cur_page);
+        $x = $this->loadPage($url_base, $cur_page, $qs);
 
         $doc = new DOMDocument();
         @$doc->loadHTML($x['body']);
@@ -731,22 +753,14 @@ class FetLifeUser extends FetLife {
         }
 
         // Find and store items on this page.
-        $items = array();
-        $entries = $this->doXPathQuery($xpath, $doc);
-        foreach ($entries as $entry) {
-            $items[] = $entry;
-        }
+        $items = $this->parseItemsInListing($xpath, $doc);
 
         // Find and store items on remainder of pages.
         while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
             $cur_page++; // increment to get to next page
-            $x = $this->loadPage($url_base, $cur_page);
+            $x = $this->loadPage($url_base, $cur_page, $qs);
             @$doc->loadHTML($x['body']);
-            // Find and store friends on this page.
-            $entries = $this->doXPathQuery($xpath, $doc);
-            foreach ($entries as $entry) {
-                $items[] = $entry;
-            }
+            $items = array_merge($items, $this->parseItemsInListing($xpath, $doc));
         }
 
         return $items;
@@ -946,6 +960,7 @@ class FetLifeProfile extends FetLifeContent {
     public $avatar_url;
     public $gender;
     public $location; // TODO: Split this up?
+    public $adr;
     public $nickname;
     public $role;
     public $relationships; // TODO
@@ -1038,7 +1053,19 @@ class FetLifeProfile extends FetLifeContent {
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
-        $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
+        $el = $doc->getElementsByTagName('em')->item(0);
+        $ret['location'] = $el->nodeValue;
+        $els = $el->getElementsByTagName('a');
+        if (3 === $els->length) {
+            $ret['adr']['locality'] = $els->item(0)->nodeValue;
+            $ret['adr']['region'] = $els->item(1)->nodeValue;
+            $ret['adr']['country-name'] = $els->item(2)->nodeValue;
+        } else if (2 === $els->length) {
+            $ret['adr']['region'] = $els->item(0)->nodeValue;
+            $ret['adr']['country-name'] = $els->item(1)->nodeValue;
+        } else if (1 === $els->length) {
+            $ret['adr']['country-name'] = $els->item(0)->nodeValue;
+        }
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
             $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
         }
@@ -1057,6 +1084,7 @@ class FetLifeProfile extends FetLifeContent {
         $x = $this->usr->parseAssociatedContentInfo($doc, 'event', true);
         $ret['events_going'] = $x->item_ids;
         $ret['events'] = $x->items;
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', false);
         $ret['events'] = array_merge($ret['events'], $x->items);
 
         //Parse out organised event info
