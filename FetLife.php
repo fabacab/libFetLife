@@ -27,11 +27,16 @@
 //ini_set('log_errors', true);
 //ini_set('error_log', '/tmp/php_errors.log');
 
+if (!defined('FL_SESSIONS_DIR')) {
+    define('FL_SESSIONS_DIR', dirname(__FILE__) . '/fl_sessions');
+}
+
 /**
  * Base class.
  */
 class FetLife {
     const base_url = 'https://fetlife.com'; // No trailing slash!
+    public $isSecure;
 }
 
 /**
@@ -48,7 +53,7 @@ class FetLifeConnection extends FetLife {
     function __construct ($usr) {
         $this->usr = $usr;
         // Initialize cookiejar (session store), etc.
-        $dir = dirname(__FILE__) . '/fl_sessions';
+        $dir = FL_SESSIONS_DIR . '/fl_sessions';
         if (!file_exists($dir)) {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
@@ -59,7 +64,7 @@ class FetLifeConnection extends FetLife {
 
     private function scrapeProxyURL () {
         $ch = curl_init(
-            'http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=&reliability=5000'
+            'http://www.xroxy.com/proxylist.php?port=&type=Anonymous&ssl=ssl&country=&latency=1000&reliability=9000'
         );
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $html = curl_exec($ch);
@@ -166,13 +171,12 @@ class FetLifeConnection extends FetLife {
             curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
             curl_setopt($ch, CURLOPT_PROXYTYPE, $this->proxy_type);
         }
-
         $r = array();
         $this->cur_page = $r['body'] = curl_exec($ch); // Grab FetLife response body.
         $this->setCsrfToken($this->findCsrfToken($r['body'])); // Update on each request.
         $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
-
+        $this->cur_page = htmlentities($this->cur_page, ENT_COMPAT, 'UTF-8');
         return $r;
     }
 
@@ -184,7 +188,7 @@ class FetLifeConnection extends FetLife {
      */
     public function findUserId ($str) {
         $matches = array();
-        preg_match('/var currentUserId = ([0-9]+);/', $str, $matches);
+        preg_match('/FetLife.currentUser.id          = ([0-9]+);/', $str, $matches);
         return $matches[1];
     }
 
@@ -367,7 +371,7 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieves all (0).
      * @return array $writings Array of FetLifeWritings objects.
      */
-    public function getWritingsOf ($who = NULL, $pages = 0) {
+    function getWritingsOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//article', "/users/$id/posts", $pages);
         $ret = array();
@@ -393,9 +397,29 @@ class FetLifeUser extends FetLife {
     }
 
     /**
+     * Retrieves a user's single Writing.
+     *
+     * @param mixed $id ID of a FetLife Writing.
+     * @param mixed $who User whose FetLife Writings to fetch. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
+     * @return mixed $writing A FetLifeWriting object, false if not found.
+     */
+    function getWritingOf ($id, $who = NULL) {
+        $author_id = $this->resolveWho($who);
+
+        $x            = array();
+        $x['creator'] = $this->getUserProfile($author_id);
+        $x['id']      = $id;
+        $x['usr']     = $this;
+        $ret = new FetLifeWriting($x);
+        $ret->populate();
+
+        return $ret;
+    }
+
+    /**
      * Retrieves a user's Pictures.
      */
-    public function getPicturesOf ($who = NULL, $pages = 0) {
+    function getPicturesOf ($who = NULL, $pages = 0) {
         $id = $this->resolveWho($who);
         $items = $this->getItemsInListing('//ul[contains(@class, "page")]/li', "/users/$id/pictures", $pages);
         $ret = array();
@@ -420,38 +444,21 @@ class FetLifeUser extends FetLife {
      * @param int $pages How many pages to retrieve. By default, retrieve all (0).
      * @return array $members Array of DOMElement objects from the group's "user_in_list" elements.
      */
-    public function getMembersOfGroup ($group_id, $pages = 0) {
+    function getMembersOfGroup ($group_id, $pages = 0) {
         return $this->getUsersInListing("/groups/$group_id/group_memberships", $pages);
     }
 
-    public function getKinkstersWithFetish ($fetish_id, $pages = 0) {
+    function getKinkstersWithFetish ($fetish_id, $pages = 0) {
         return $this->getUsersInListing("/fetishes/$fetish_id/kinksters", $pages);
     }
-    public function getKinkstersGoingToEvent ($event_id, $pages = 0) {
+    function getKinkstersGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps", $pages);
     }
-    public function getKinkstersMaybeGoingToEvent ($event_id, $pages = 0) {
+    function getKinkstersMaybeGoingToEvent ($event_id, $pages = 0) {
         return $this->getUsersInListing("/events/$event_id/rsvps/maybe", $pages);
     }
-    public function getKinkstersInLocation ($loc_str, $pages = 0) {
+    function getKinkstersInLocation ($loc_str, $pages = 0) {
         return $this->getUsersInListing("/administrative_areas/$loc_str/kinksters", $pages);
-    }
-
-    public function searchKinksters ($query, $pages = 0) {
-        return $this->getUsersInListing('/search/kinksters', $pages, "q=$query");
-    }
-
-    /**
-     * Performs a quick search of "everything" on FetLife, but only returns the first page of results.
-     * To get more information, do a specific search by object type.
-     *
-     * @param string $query The search query.
-     * @return object $results Search results by type.
-     */
-    public function search ($query) {
-        $results = new stdClass();
-        $results->kinksters = $this->getUsersInListing('/search', $pages = 1, "q=$query");
-        return $results;
     }
 
     /**
@@ -485,22 +492,14 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url The URL of the paginated set.
      * @param int $page The number of the page in the set.
-     * @param string $qs A query string to append to the URL.
      * @return array The result of the HTTP request.
      * @see FetLifeConnection::doHttpRequest
      */
-    // TODO: This should really be a bit more sensible.
-    private function loadPage ($url, $page = 1, $qs = '') {
+    private function loadPage ($url, $page = 1) {
         if ($page > 1) {
-            $url .= "?page=$page&";
-        } else if (!empty($qs)) {
-            $url .= '?';
+            $url .= "?page=$page";
         }
-        if (!empty($qs)) {
-            $url .= $qs;
-        }
-        $res = $this->connection->doHttpGet($url);
-        return $res;
+        return $this->connection->doHttpGet($url);
     }
 
     /**
@@ -531,11 +530,10 @@ class FetLifeUser extends FetLife {
      *
      * @param string $url_base The base URL for the listing pages.
      * @param int $pages The number of pages to iterate through.
-     * @param string $qs A query string to append to the URL.
      * @return array Array of FetLifeProfile objects from the listing's "user_in_list" elements.
      */
-    private function getUsersInListing ($url_base, $pages, $qs = '') {
-        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages, $qs);
+    private function getUsersInListing ($url_base, $pages) {
+        $items = $this->getItemsInListing('//*[contains(@class, "user_in_list")]', $url_base, $pages);
         $ret = array();
         foreach ($items as $v) {
             $u = array();
@@ -544,22 +542,10 @@ class FetLifeUser extends FetLife {
             $u['url'] = $v->getElementsByTagName('a')->item(0)->attributes->getNamedItem('href')->value;
             $u['id'] = current(array_reverse(explode('/', $u['url'])));
             list(, $u['age'], $u['gender'], $u['role']) = $this->parseAgeGenderRole($v->getElementsByTagName('span')->item(1)->nodeValue);
-            $u['location'] = trim($v->getElementsByTagName('em')->item(0)->nodeValue);
-            $pieces = array_map('trim', explode(',', $u['location']));
-            $u['adr']['locality'] = $pieces[0];
-            $u['adr']['region'] = $pieces[1];
+            $u['location'] = $v->getElementsByTagName('em')->item(0)->nodeValue;
             $ret[] = new FetLifeProfile($u);
         }
         return $ret;
-    }
-
-    private function parseItemsInListing ($xpath, $doc) {
-        $items = array();
-        $entries = $this->doXPathQuery($xpath, $doc);
-        foreach ($entries as $entry) {
-            $items[] = $entry;
-        }
-        return $items;
     }
 
     // TODO: Perhaps these utility functions ought go in their own parser class?
@@ -644,6 +630,10 @@ class FetLifeUser extends FetLife {
             case 'event':
                 $str = ($is_leader) ? 'Events going to' : 'Events maybe going to';
                 break;
+            case 'organizing':
+                $str = 'Events organizing';
+                $obj_type = 'event';
+                break;
             case 'writing':
                 $str = 'Writing';
                 break;
@@ -701,16 +691,11 @@ class FetLifeUser extends FetLife {
 
     /**
      * Iterates through a multi-page listing of items that match an XPath query.
-     *
-     * @param string $xpath An XPath string for scraping the desired HTML elements.
-     * @param string $url_base The base URL of the possibly-paginated page to scrape.
-     * @param int $pages The number of pages to iterate through.
-     * @param string $qs A query string to append to the base URL.
      */
-    private function getItemsInListing ($xpath, $url_base, $pages, $qs = '') {
+    private function getItemsInListing ($xpath, $url_base, $pages) {
         // Retrieve the first page.
         $cur_page = 1;
-        $x = $this->loadPage($url_base, $cur_page, $qs);
+        $x = $this->loadPage($url_base, $cur_page);
 
         $doc = new DOMDocument();
         @$doc->loadHTML($x['body']);
@@ -722,14 +707,22 @@ class FetLifeUser extends FetLife {
         }
 
         // Find and store items on this page.
-        $items = $this->parseItemsInListing($xpath, $doc);
+        $items = array();
+        $entries = $this->doXPathQuery($xpath, $doc);
+        foreach ($entries as $entry) {
+            $items[] = $entry;
+        }
 
         // Find and store items on remainder of pages.
         while ( ($cur_page < $num_pages) && ($cur_page < $pages) ) {
             $cur_page++; // increment to get to next page
-            $x = $this->loadPage($url_base, $cur_page, $qs);
+            $x = $this->loadPage($url_base, $cur_page);
             @$doc->loadHTML($x['body']);
-            $items = array_merge($items, $this->parseItemsInListing($xpath, $doc));
+            // Find and store friends on this page.
+            $entries = $this->doXPathQuery($xpath, $doc);
+            foreach ($entries as $entry) {
+                $items[] = $entry;
+            }
         }
 
         return $items;
@@ -753,7 +746,27 @@ abstract class FetLifeContent extends FetLife {
         }
     }
 
-    abstract public function getUrl();
+    function __sleep () {
+        if (isset($this->content) && !empty($this->content)) {
+            $this->content = $this->getContentHtml(true);
+        }
+        return array_keys(get_object_vars($this));
+    }
+
+    function __wakeup () {
+        $html = $this->content;
+        $nodes = array();
+        $doc = new DOMDocument();
+        @$doc->loadHTML("<html>{$html}</html>");
+        $child = $doc->documentElement->firstChild;
+        while($child) {
+            $nodes[] = $doc->importNode($child,true);
+            $child = $child->nextSibling;
+        }
+        $this->content = reset($nodes);
+    }
+
+    abstract public function getUrl ();
 
     // Return the full URL, with fragment identifier.
     // TODO: Should this become an abstract class to enforce this contract?
@@ -773,13 +786,18 @@ abstract class FetLifeContent extends FetLife {
         }
     }
 
-    public function getContentHtml () {
+    public function getContentHtml ($pristine = true) {
         $html = '';
-        $doc = new DOMDocument();
-        foreach ($this->content->childNodes as $node) {
-            $el = $doc->importNode($node, true);
-            $html .= $doc->saveHTML($el);
+        if (!empty($this->content) && $this->content instanceof DOMElement) {
+            $doc = new DOMDocument();
+            foreach ($this->content->childNodes as $node) {
+                $el = $doc->importNode($node, true);
+                $html .= $doc->saveHTML($el);
+            }
+        } else {
+            $html = $this->content;
         }
+        $html = $pristine ? $html : htmlentities($html, ENT_COMPAT, 'UTF-8');
         return $html;
     }
 }
@@ -820,17 +838,23 @@ class FetLifeWriting extends FetLifeContent {
 
     // Override parent's implementation to strip out final paragraph from
     // contents that were scraped from a Writing listing page.
-    function getContentHtml () {
+    function getContentHtml ($pristine = true) {
         $html = '';
-        $doc = new DOMDocument();
-        foreach ($this->content->childNodes as $node) {
-            $el = $doc->importNode($node, true);
-            // Strip out FetLife's own "Read NUMBER comments" paragraph
-            if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
-                continue;
+        if (!empty($this->content) && $this->content instanceof DOMElement) {
+            $doc = new DOMDocument();
+            foreach ($this->content->childNodes as $node) {
+                $el = $doc->importNode($node, true);
+                // Strip out FetLife's own "Read NUMBER comments" paragraph
+                if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
+                    continue;
+                }
+                $html .= $doc->saveHTML($el);
             }
-            $html .= $doc->saveHTML($el);
+        } else {
+            $html = $this->content;
         }
+
+        $html = $pristine ? $html : htmlentities($html, ENT_COMPAT, 'UTF-8'); 
         return $html;
     }
 }
@@ -898,7 +922,6 @@ class FetLifeProfile extends FetLifeContent {
     public $avatar_url;
     public $gender;
     public $location; // TODO: Split this up?
-    public $adr;
     public $nickname;
     public $role;
     public $relationships; // TODO
@@ -909,10 +932,11 @@ class FetLifeProfile extends FetLifeContent {
     public $websites;    //< An array of URLs listed by the profile.
     public $fetishes;    //< An array of FetLifeFetish objects, eventually
 
-    protected $events;      //< Array of FetLifeEvent objects
-    protected $groups;      //< Array of FetLifeGroup objects
-    protected $events_going; //< Array of event IDs for which this user RSVP'ed "going"
-    protected $groups_lead;  //< Array of group IDs for which this profile is a group leader.
+    protected $events;              //< Array of FetLifeEvent objects
+    protected $events_organised;    //< Array of FetLifeEvent objects
+    protected $groups;              //< Array of FetLifeGroup objects
+    protected $events_going;        //< Array of event IDs for which this user RSVP'ed "going"
+    protected $groups_lead;         //< Array of group IDs for which this profile is a group leader.
 
     function __construct ($arr_param) {
         parent::__construct($arr_param);
@@ -943,6 +967,9 @@ class FetLifeProfile extends FetLifeContent {
 
     public function getEvents () {
         return $this->events;
+    }
+    public function getEventsOrganised () {
+        return $this->events_organised;
     }
     public function getEventsGoingTo () {
         $r = array();
@@ -987,19 +1014,7 @@ class FetLifeProfile extends FetLifeContent {
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
-        $el = $doc->getElementsByTagName('em')->item(0);
-        $ret['location'] = $el->nodeValue;
-        $els = $el->getElementsByTagName('a');
-        if (3 === $els->length) {
-            $ret['adr']['locality'] = $els->item(0)->nodeValue;
-            $ret['adr']['region'] = $els->item(1)->nodeValue;
-            $ret['adr']['country-name'] = $els->item(2)->nodeValue;
-        } else if (2 === $els->length) {
-            $ret['adr']['region'] = $els->item(0)->nodeValue;
-            $ret['adr']['country-name'] = $els->item(1)->nodeValue;
-        } else if (1 === $els->length) {
-            $ret['adr']['country-name'] = $els->item(0)->nodeValue;
-        }
+        $ret['location'] = $doc->getElementsByTagName('em')->item(0)->nodeValue;
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
             $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
         }
@@ -1018,8 +1033,11 @@ class FetLifeProfile extends FetLifeContent {
         $x = $this->usr->parseAssociatedContentInfo($doc, 'event', true);
         $ret['events_going'] = $x->item_ids;
         $ret['events'] = $x->items;
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', false);
         $ret['events'] = array_merge($ret['events'], $x->items);
+
+        //Parse out organised event info
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'organizing', false);
+        $ret['events_organised'] = $x->items;
 
         // Parse out group info
         $x = $this->usr->parseAssociatedContentInfo($doc, 'group', true);
@@ -1043,7 +1061,7 @@ class FetLifeProfile extends FetLifeContent {
      * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the
      * requested resolution however.
      */
-    function transformAvatarURL($avatar_url, $size) {
+    function transformAvatarURL ($avatar_url, $size) {
         return preg_replace('/_[0-9]+\.jpg$/', "_$size.jpg", $avatar_url);
     }
 }
@@ -1162,7 +1180,7 @@ class FetLifeGroup extends FetLifeContent {
     public $last_touch;   //< Timestamp of the "last comment" line item, to estimate group activity.
     public $started_on;   //< Timestamp of the "started on" date, as reported on the about page.
 
-    public function getUrl() {
+    public function getUrl () {
         return '/groups/' . $this->id;
     }
 
@@ -1173,7 +1191,7 @@ class FetLifeGroup extends FetLifeContent {
 
 // TODO
 class FetLifeGroupDiscussion extends FetLifeContent {
-    public function getUrl() {
+    public function getUrl () {
         return parent::getUrl() . '/group_posts/' . $this->id;
     }
 }
