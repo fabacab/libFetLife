@@ -1,0 +1,10 @@
+<phpunit
+    bootstrap="bootstrap.php"
+    convertNoticesToExceptions="false"
+    >
+    <php>
+        <var name="fetlife_username" value="YOUR_USERNAME_HERE" />
+        <var name="fetlife_password" value="YOUR_PASSWORD_HERE" />
+        <var name="fetlife_proxyurl" value="auto" />
+    </php>
+</phpunit>

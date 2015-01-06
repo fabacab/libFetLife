@@ -138,6 +138,14 @@ You can also perform basic searches:
 
 [Patches welcome](https://github.com/meitar/libFetLife/issues/new). :)
 
+## Testing
+
+`libFetLife` uses [PHPUnit](https://phpunit.de/) for unit testing. The `tests/` directory includes a `phpunit.xml.sample` file with a default configuration. To run live tests, you need to edit this file so that the global variables `fetlife_username`, `fetlife_password,` and `fetlife_proxyurl` have the values you want to use to create the test runner's `FetLifeUser` object, as described above, and then copy it to `phpunit.xml`.
+
+    cd libFetLife/tests               # Inside the tests directory...
+    vi phpunit.xml.sample             # is a sample PHPUnit configuration file. Edit it.
+    cp phpunit.xml.sample phpunit.xml # Then copy it to PHPUnit's expected location.
+
 ## Projects that use libFetLife
 
 * [FetLife WordPress eXtended RSS Generator](https://github.com/meitar/fetlife2wxr)
