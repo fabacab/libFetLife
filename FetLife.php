@@ -659,7 +659,7 @@ class FetLifeUser extends FetLife {
      *
      * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
      * @param string $type The specific section of associated content to parse.
-     * @param bool $relation_to_user Group leadership, event organising, event attending or event maybe attending
+     * @param mixed $relation_to_user A string for group "leader", event "organizing", event "maybe_going". Default bool false.
      * @return Object An object with two members, item_ids and items, each arrays.
      */
     public function parseAssociatedContentInfo ($doc, $obj_type, $relation_to_user = false) {
@@ -670,14 +670,14 @@ class FetLifeUser extends FetLife {
         switch ($obj_type) {
             case 'event':
                 switch ($relation_to_user) {
-                    case 'going':
-                        $str = 'Events going to';
-                        break;
                     case 'organizing':
                         $str = 'Events organizing';
                         break;
                     case 'maybe_going':
                         $str = 'Events maybe going to';
+                        break;
+                    default:
+                        $str = 'Events going to';
                         break;
                 }
                 $obj_type = 'event';
@@ -686,7 +686,7 @@ class FetLifeUser extends FetLife {
                 $str = 'Writing';
                 break;
             case 'group':
-                $str = ($is_leader == 'lead') ? 'Groups I lead' : 'Groups member of';
+                $str = ($relation_to_user == 'leader') ? 'Groups I lead' : 'Groups member of';
                 break;
         }
         $obj = 'FetLife' . ucfirst($obj_type);
