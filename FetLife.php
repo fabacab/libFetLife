@@ -53,7 +53,7 @@ class FetLifeConnection extends FetLife {
     function __construct ($usr) {
         $this->usr = $usr;
         // Initialize cookiejar (session store), etc.
-        $dir = FL_SESSIONS_DIR . '/fl_sessions';
+        $dir = FL_SESSIONS_DIR;
         if (!file_exists($dir)) {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
@@ -191,7 +191,7 @@ class FetLifeConnection extends FetLife {
      */
     public function findUserId ($str) {
         $matches = array();
-        preg_match('/FetLife.currentUser.id          = ([0-9]+);/', $str, $matches); //Fix regex
+        preg_match('/FetLife.currentUser.id[\s]{10}= ([0-9]+);/', $str, $matches); //Fix regex
         return $matches[1];
     }
 
@@ -406,7 +406,7 @@ class FetLifeUser extends FetLife {
      * @param mixed $who User whose FetLife Writings to fetch. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
      * @return mixed $writing A FetLifeWriting object, false if not found.
      */
-    function getWritingOf ($id, $who = NULL) {
+    public function getWritingOf ($id, $who = NULL) {
         $author_id = $this->resolveWho($who);
 
         $x            = array();
@@ -659,27 +659,34 @@ class FetLifeUser extends FetLife {
      *
      * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
      * @param string $type The specific section of associated content to parse.
-     * @param bool $is_leader Add to leadership/RSVP going to info, too?
+     * @param bool $relation_to_user Group leadership, event organising, event attending or event maybe attending
      * @return Object An object with two members, item_ids and items, each arrays.
      */
-    public function parseAssociatedContentInfo ($doc, $obj_type, $is_leader = false) {
+    public function parseAssociatedContentInfo ($doc, $obj_type, $relation_to_user = false) {
         $ret = new stdClass();
         $ret->items = array();
         $ret->item_ids = array();
 
         switch ($obj_type) {
             case 'event':
-                $str = ($is_leader) ? 'Events going to' : 'Events maybe going to';
-                break;
-            case 'organizing':
-                $str = 'Events organizing';
+                switch ($relation_to_user) {
+                    case 'going':
+                        $str = 'Events going to';
+                        break;
+                    case 'organizing':
+                        $str = 'Events organizing';
+                        break;
+                    case 'maybe_going':
+                        $str = 'Events maybe going to';
+                        break;
+                }
                 $obj_type = 'event';
                 break;
             case 'writing':
                 $str = 'Writing';
                 break;
             case 'group':
-                $str = ($is_leader) ? 'Groups I lead' : 'Groups member of';
+                $str = ($is_leader == 'lead') ? 'Groups I lead' : 'Groups member of';
                 break;
         }
         $obj = 'FetLife' . ucfirst($obj_type);
@@ -972,7 +979,7 @@ class FetLifeProfile extends FetLifeContent {
     public $fetishes;    //< An array of FetLifeFetish objects, eventually
 
     protected $events;              //< Array of FetLifeEvent objects
-    protected $events_organised;    //< Array of FetLifeEvent objects
+    protected $events_organizing;    //< Array of FetLifeEvent objects
     protected $groups;              //< Array of FetLifeGroup objects
     protected $events_going;        //< Array of event IDs for which this user RSVP'ed "going"
     protected $groups_lead;         //< Array of group IDs for which this profile is a group leader.
@@ -1007,8 +1014,8 @@ class FetLifeProfile extends FetLifeContent {
     public function getEvents () {
         return $this->events;
     }
-    public function getEventsOrganised () {
-        return $this->events_organised;
+    public function getEventsOrganizing () {
+        return $this->events_organizing;
     }
     public function getEventsGoingTo () {
         $r = array();
@@ -1081,21 +1088,21 @@ class FetLifeProfile extends FetLifeContent {
         }
 
         // Parse out event info
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', true);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'going');
         $ret['events_going'] = $x->item_ids;
         $ret['events'] = $x->items;
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', false);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'maybe_going');
         $ret['events'] = array_merge($ret['events'], $x->items);
 
-        //Parse out organised event info
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'organizing', false);
-        $ret['events_organised'] = $x->items;
+        //Parse out organizing event info
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'organizing');
+        $ret['events_organizing'] = $x->items;
 
         // Parse out group info
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', true);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', 'leader');
         $ret['groups_lead'] = $x->item_ids;
         $ret['groups'] = $x->items;
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', false);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group');
         $ret['groups'] = array_merge($ret['groups'], $x->items);
 
         return $ret;
