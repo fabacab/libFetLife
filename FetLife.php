@@ -36,7 +36,7 @@ if (!defined('FL_SESSIONS_DIR')) {
  */
 class FetLife {
     const base_url = 'https://fetlife.com'; // No trailing slash!
-    public $isSecure; // To indicate if the password has been encrypted
+    // public $isSecure; // To indicate if the password has been encrypted - TODO encrypt/decrypt methods
 }
 
 /**
