@@ -4,16 +4,16 @@
 
 ## System requirements
 
-To run `libFetLife`, you need PHP version 5.3.6 or greater.
+To run `libFetLife`, you need PHP version 5.3.6 or greater (with [PHP's cURL extension](https://php.net/manual/book.curl.php) installed).
 
 ## Getting started
 
 To use `libFetLife`, include it in your project and instantiate a new `FetLifeUser` object:
 
     // Load FetLife API.
-    require_once('libFetLife/FetLife.php');
+    require_once 'libFetLife/FetLife.php';
 
-    // Log in as a user.
+    // Make a FetLifeUser (like a database handle).
     $FL = new FetLifeUser('username', 'password');
 
 You can optionally instruct `libFetLife` to use a proxy instead of making direction connections to FetLife.com:
