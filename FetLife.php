@@ -1027,52 +1027,39 @@ class FetLifeProfile extends FetLifeContent {
     public function getEvents () {
         return $this->events;
     }
-    public function getEventsGoingTo () {
-        $r = array();
-        foreach ($this->events_going as $id) {
-            foreach ($this->events as $x) {
-                if ($id == $x->id) {
-                    $r[] = $x;
-                }
-            }
-        }
-        return $r;
-    }
-    public function getEventsMaybeGoingTo () {
-        $r = array();
-        foreach ($this->events_maybe_going as $id) {
-            foreach ($this->events as $x) {
-                if ($id == $x->id) {
-                    $r[] = $x;
-                }
-            }
-        }
-        return $r;
-    }
-    public function getEventsOrganizing () {
-        $r = array();
-        foreach ($this->events_organizing as $id) {
-            foreach ($this->events as $x) {
-                if ($id == $x->id) {
-                    $r[] = $x;
-                }
-            }
-        }
-        return $r;
-    }
     public function getGroups () {
         return $this->groups;
     }
-    public function getGroupsLead () {
+
+    /**
+     * Tiny helper to reduce some code duplication.
+     * @see parseAssociatedContentInfo
+     */
+    // TODO: Normalize the semantics between this function and
+    //       the paramters for parseAssociatedContentInfo.
+    private function getSegmentOf ($obj_type, $segment) {
         $r = array();
-        foreach ($this->groups_lead as $id) {
-            foreach ($this->groups as $x) {
+        $item_list = "{$obj_type}_{$segment}";
+        foreach ($this->$item_list as $id) {
+            foreach ($this->$obj_type as $x) {
                 if ($id == $x->id) {
                     $r[] = $x;
                 }
             }
         }
         return $r;
+    }
+    public function getEventsGoingTo () {
+        return $this->getSegmentOf('events', 'going');
+    }
+    public function getEventsMaybeGoingTo () {
+        return $this->getSegmentOf('events', 'maybe_going');
+    }
+    public function getEventsOrganizing () {
+        return $this->getSegmentOf('events', 'organizing');
+    }
+    public function getGroupsLead () {
+        return $this->getSegmentOf('groups', 'lead');
     }
 
     // Given some HTML of a FetLife Profile page, returns an array of its data.
