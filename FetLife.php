@@ -36,7 +36,6 @@ if (!defined('FL_SESSIONS_DIR')) {
  */
 class FetLife {
     const base_url = 'https://fetlife.com'; // No trailing slash!
-    // public $isSecure; // To indicate if the password has been encrypted - TODO encrypt/decrypt methods
 }
 
 /**
@@ -191,7 +190,7 @@ class FetLifeConnection extends FetLife {
      */
     public function findUserId ($str) {
         $matches = array();
-        preg_match('/FetLife.currentUser.id[\s]{10}= ([0-9]+);/', $str, $matches); //Fix regex
+        preg_match('/FetLife.currentUser.id[\s]{10}= ([0-9]+);/', $str, $matches);
         return $matches[1];
     }
 
