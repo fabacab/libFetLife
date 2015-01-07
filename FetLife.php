@@ -189,9 +189,12 @@ class FetLifeConnection extends FetLife {
      * @return mixed User ID on success. False on failure.
      */
     public function findUserId ($str) {
-        $matches = array();
-        preg_match('/FetLife.currentUser.id[\s]{10}= ([0-9]+);/', $str, $matches);
-        return $matches[1];
+        $m = array();
+        preg_match('/FetLife\.currentUser\.id\s*=\s*([0-9]+);/', $str, $m);
+        if (empty($m[1])) { // Sometimes FetLife returns different HTML.
+            preg_match('/var currentUserId\s*=\s*([0-9]+)/', $str, $m);
+        }
+        return (empty($m[1])) ? false : $m[1];
     }
 
     /**
