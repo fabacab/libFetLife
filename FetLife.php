@@ -27,6 +27,10 @@
 //ini_set('log_errors', true);
 //ini_set('error_log', '/tmp/php_errors.log');
 
+if (!defined('FL_SESSIONS_DIR')) {
+    define('FL_SESSIONS_DIR', dirname(__FILE__) . '/fl_sessions');
+}
+
 /**
  * Base class.
  */
@@ -48,7 +52,7 @@ class FetLifeConnection extends FetLife {
     function __construct ($usr) {
         $this->usr = $usr;
         // Initialize cookiejar (session store), etc.
-        $dir = dirname(__FILE__) . '/fl_sessions';
+        $dir = FL_SESSIONS_DIR;
         if (!file_exists($dir)) {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
@@ -64,6 +68,7 @@ class FetLifeConnection extends FetLife {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         $html = curl_exec($ch);
         curl_close($ch);
+
         $dom = new DOMDocument();
         @$dom->loadHTML($html);
         $rows = $dom->getElementsByTagName('tr');
@@ -173,6 +178,7 @@ class FetLifeConnection extends FetLife {
         $r['curl_info'] = curl_getinfo($ch);
         curl_close($ch);
 
+        $this->cur_page = htmlentities($this->cur_page, ENT_COMPAT, 'UTF-8'); // for debugging - no need to keep it encoded AFAIK
         return $r;
     }
 
@@ -184,7 +190,7 @@ class FetLifeConnection extends FetLife {
      */
     public function findUserId ($str) {
         $matches = array();
-        preg_match('/var currentUserId = ([0-9]+);/', $str, $matches);
+        preg_match('/FetLife.currentUser.id[\s]{10}= ([0-9]+);/', $str, $matches);
         return $matches[1];
     }
 
@@ -389,6 +395,26 @@ class FetLifeUser extends FetLife {
             $x['usr']        = $this;
             $ret[] = new FetLifeWriting($x);
         }
+        return $ret;
+    }
+
+    /**
+     * Retrieves a user's single Writing.
+     *
+     * @param mixed $id ID of a FetLife Writing.
+     * @param mixed $who User whose FetLife Writings to fetch. If a string, treats it as a FetLife nickname and resolves to a numeric ID. If an integer, uses that ID. By default, the logged-in user.
+     * @return mixed $writing A FetLifeWriting object, false if not found.
+     */
+    public function getWritingOf ($id, $who = NULL) {
+        $author_id = $this->resolveWho($who);
+
+        $x            = array();
+        $x['creator'] = $this->getUserProfile($author_id);
+        $x['id']      = $id;
+        $x['usr']     = $this;
+        $ret = new FetLifeWriting($x);
+        $ret->populate();
+
         return $ret;
     }
 
@@ -632,23 +658,42 @@ class FetLifeUser extends FetLife {
      *
      * @param DOMDocument $doc The DOMDocument representing the page we're parsing.
      * @param string $type The specific section of associated content to parse.
-     * @param bool $is_leader Add to leadership/RSVP going to info, too?
+     * @param mixed $relation_to_user A string for group "leader", group "member", event "organizing", event "maybe_going". Default bool false.
      * @return Object An object with two members, item_ids and items, each arrays.
      */
-    public function parseAssociatedContentInfo ($doc, $obj_type, $is_leader = false) {
+    public function parseAssociatedContentInfo ($doc, $obj_type, $relation_to_user = false) {
         $ret = new stdClass();
         $ret->items = array();
         $ret->item_ids = array();
 
         switch ($obj_type) {
             case 'event':
-                $str = ($is_leader) ? 'Events going to' : 'Events maybe going to';
+                switch ($relation_to_user) {
+                    case 'organizing':
+                        $str = 'Events organizing';
+                        break;
+                    case 'maybe_going':
+                        $str = 'Events maybe going to';
+                        break;
+                    case 'going':
+                    default:
+                        $str = 'Events going to';
+                        break;
+                }
                 break;
             case 'writing':
                 $str = 'Writing';
                 break;
             case 'group':
-                $str = ($is_leader) ? 'Groups I lead' : 'Groups member of';
+                switch ($relation_to_user) {
+                    case 'leader':
+                        $str = 'Groups I lead';
+                        break;
+                    case 'member':
+                    default:
+                        $str = 'Groups member of';
+                        break;
+                }
                 break;
         }
         $obj = 'FetLife' . ucfirst($obj_type);
@@ -658,7 +703,7 @@ class FetLifeUser extends FetLife {
             foreach ($els->item(0)->getElementsByTagName('a') as $el) {
                 // explode() to extract the group number from like: href="/groups/1234"
                 $id = $this->parseIdFromUrl($el->getAttribute('href'));
-                if ($is_leader) {
+                if ($relation_to_user) {
                     $ret->item_ids[] = $id;
                 }
                 $ret->items[] = new $obj(array(
@@ -753,7 +798,27 @@ abstract class FetLifeContent extends FetLife {
         }
     }
 
-    abstract public function getUrl();
+    function __sleep () {
+        if (isset($this->content) && !empty($this->content)) {
+            $this->content = $this->getContentHtml(true);
+        }
+        return array_keys(get_object_vars($this));
+    }
+
+    function __wakeup () {
+        $html = $this->content;
+        $nodes = array();
+        $doc = new DOMDocument();
+        @$doc->loadHTML("<html>{$html}</html>");
+        $child = $doc->documentElement->firstChild;
+        while($child) {
+            $nodes[] = $doc->importNode($child,true);
+            $child = $child->nextSibling;
+        }
+        $this->content = reset($nodes);
+    }
+
+    abstract public function getUrl ();
 
     // Return the full URL, with fragment identifier.
     // TODO: Should this become an abstract class to enforce this contract?
@@ -773,13 +838,18 @@ abstract class FetLifeContent extends FetLife {
         }
     }
 
-    public function getContentHtml () {
+    public function getContentHtml ($pristine = true) {
         $html = '';
-        $doc = new DOMDocument();
-        foreach ($this->content->childNodes as $node) {
-            $el = $doc->importNode($node, true);
-            $html .= $doc->saveHTML($el);
+        if (!empty($this->content) && $this->content instanceof DOMElement) {
+            $doc = new DOMDocument();
+            foreach ($this->content->childNodes as $node) {
+                $el = $doc->importNode($node, true);
+                $html .= $doc->saveHTML($el);
+            }
+        } else {
+            $html = $this->content;
         }
+        $html = $pristine ? $html : htmlentities($html, ENT_COMPAT, 'UTF-8');
         return $html;
     }
 }
@@ -820,17 +890,23 @@ class FetLifeWriting extends FetLifeContent {
 
     // Override parent's implementation to strip out final paragraph from
     // contents that were scraped from a Writing listing page.
-    function getContentHtml () {
+    function getContentHtml ($pristine = true) {
         $html = '';
-        $doc = new DOMDocument();
-        foreach ($this->content->childNodes as $node) {
-            $el = $doc->importNode($node, true);
-            // Strip out FetLife's own "Read NUMBER comments" paragraph
-            if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
-                continue;
+        if (!empty($this->content) && $this->content instanceof DOMElement) {
+            $doc = new DOMDocument();
+            foreach ($this->content->childNodes as $node) {
+                $el = $doc->importNode($node, true);
+                // Strip out FetLife's own "Read NUMBER comments" paragraph
+                if ($el->hasAttributes() && (false !== stripos($el->attributes->getNamedItem('class')->value, 'no_underline')) ) {
+                    continue;
+                }
+                $html .= $doc->saveHTML($el);
             }
-            $html .= $doc->saveHTML($el);
+        } else {
+            $html = $this->content;
         }
+
+        $html = $pristine ? $html : htmlentities($html, ENT_COMPAT, 'UTF-8'); 
         return $html;
     }
 }
@@ -909,10 +985,14 @@ class FetLifeProfile extends FetLifeContent {
     public $websites;    //< An array of URLs listed by the profile.
     public $fetishes;    //< An array of FetLifeFetish objects, eventually
 
-    protected $events;      //< Array of FetLifeEvent objects
-    protected $groups;      //< Array of FetLifeGroup objects
-    protected $events_going; //< Array of event IDs for which this user RSVP'ed "going"
-    protected $groups_lead;  //< Array of group IDs for which this profile is a group leader.
+    protected $events;              //< Array of FetLifeEvent objects
+    protected $groups;              //< Array of FetLifeGroup objects
+    protected $groups_lead;         //< Array of group IDs for which this profile is a group leader.
+    protected $groups_member;       //< Array of group IDs for which this profile is a group member.
+    protected $events_going;        //< Array of event IDs for which this user RSVP'ed "going"
+    protected $events_maybe_going;  //< Array of event IDs for which this user RSVP'ed "maybe going"
+    protected $events_organizing;   //< Array of event IDs this user is organizing
+
 
     function __construct ($arr_param) {
         parent::__construct($arr_param);
@@ -947,6 +1027,28 @@ class FetLifeProfile extends FetLifeContent {
     public function getEventsGoingTo () {
         $r = array();
         foreach ($this->events_going as $id) {
+            foreach ($this->events as $x) {
+                if ($id == $x->id) {
+                    $r[] = $x;
+                }
+            }
+        }
+        return $r;
+    }
+    public function getEventsMaybeGoingTo () {
+        $r = array();
+        foreach ($this->events_maybe_going as $id) {
+            foreach ($this->events as $x) {
+                if ($id == $x->id) {
+                    $r[] = $x;
+                }
+            }
+        }
+        return $r;
+    }
+    public function getEventsOrganizing () {
+        $r = array();
+        foreach ($this->events_organizing as $id) {
             foreach ($this->events as $x) {
                 if ($id == $x->id) {
                     $r[] = $x;
@@ -1015,17 +1117,23 @@ class FetLifeProfile extends FetLifeContent {
         }
 
         // Parse out event info
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', true);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'going');
         $ret['events_going'] = $x->item_ids;
         $ret['events'] = $x->items;
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', false);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'maybe_going');
+        $ret['events_maybe_going'] = $x->item_ids;
+        $ret['events'] = array_merge($ret['events'], $x->items);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'event', 'organizing');
+        $ret['events_organizing'] = $x->item_ids;
         $ret['events'] = array_merge($ret['events'], $x->items);
 
+
         // Parse out group info
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', true);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', 'leader');
         $ret['groups_lead'] = $x->item_ids;
         $ret['groups'] = $x->items;
-        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', false);
+        $x = $this->usr->parseAssociatedContentInfo($doc, 'group', 'member');
+        $ret['groups_member'] = $x->item_ids;
         $ret['groups'] = array_merge($ret['groups'], $x->items);
 
         return $ret;
@@ -1043,7 +1151,7 @@ class FetLifeProfile extends FetLifeContent {
      * found. i.e. From 60px to 200px. Does not guarantee Fetlife will have the
      * requested resolution however.
      */
-    function transformAvatarURL($avatar_url, $size) {
+    function transformAvatarURL ($avatar_url, $size) {
         return preg_replace('/_[0-9]+\.jpg$/', "_$size.jpg", $avatar_url);
     }
 }
@@ -1162,7 +1270,7 @@ class FetLifeGroup extends FetLifeContent {
     public $last_touch;   //< Timestamp of the "last comment" line item, to estimate group activity.
     public $started_on;   //< Timestamp of the "started on" date, as reported on the about page.
 
-    public function getUrl() {
+    public function getUrl () {
         return '/groups/' . $this->id;
     }
 
@@ -1173,7 +1281,7 @@ class FetLifeGroup extends FetLifeContent {
 
 // TODO
 class FetLifeGroupDiscussion extends FetLifeContent {
-    public function getUrl() {
+    public function getUrl () {
         return parent::getUrl() . '/group_posts/' . $this->id;
     }
 }
