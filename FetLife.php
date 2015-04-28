@@ -1079,18 +1079,19 @@ class FetLifeProfile extends FetLifeContent {
         if ($el = $this->usr->doXPathQuery('//*[@class="pan"]', $doc)->item(0)) {
             $ret['avatar_url'] = $el->attributes->getNamedItem('src')->value;
         }
-        $el = $doc->getElementsByTagName('em')->item(0);
-        $ret['location'] = $el->nodeValue;
-        $els = $el->getElementsByTagName('a');
-        if (3 === $els->length) {
-            $ret['adr']['locality'] = $els->item(0)->nodeValue;
-            $ret['adr']['region'] = $els->item(1)->nodeValue;
-            $ret['adr']['country-name'] = $els->item(2)->nodeValue;
-        } else if (2 === $els->length) {
-            $ret['adr']['region'] = $els->item(0)->nodeValue;
-            $ret['adr']['country-name'] = $els->item(1)->nodeValue;
-        } else if (1 === $els->length) {
-            $ret['adr']['country-name'] = $els->item(0)->nodeValue;
+        if ($el = $doc->getElementsByTagName('em')->item(0)) {
+            $ret['location'] = $el->nodeValue;
+            $els = $el->getElementsByTagName('a');
+            if (3 === $els->length) {
+                $ret['adr']['locality'] = $els->item(0)->nodeValue;
+                $ret['adr']['region'] = $els->item(1)->nodeValue;
+                $ret['adr']['country-name'] = $els->item(2)->nodeValue;
+            } else if (2 === $els->length) {
+                $ret['adr']['region'] = $els->item(0)->nodeValue;
+                $ret['adr']['country-name'] = $els->item(1)->nodeValue;
+            } else if (1 === $els->length) {
+                $ret['adr']['country-name'] = $els->item(0)->nodeValue;
+            }
         }
         if ($el = $doc->getElementsByTagName('img')->item(0)) {
             $ret['nickname'] = $el->attributes->getNamedItem('alt')->value;
