@@ -1220,15 +1220,15 @@ class FetLifeEvent extends FetLifeContent {
         @$doc->loadHTML($html);
         $ret = array();
         $ret['title'] = $this->usr->doXPathQuery('//h1[@itemprop="name"]', $doc)->item(0)->textContent;
-        if(!empty($this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0)->nodeValue)) {
+        if(!empty($this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0))) {
             $ret['tagline'] = $this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0)->nodeValue;
         }
         $ret['dtstart'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "startDate")]/@content', $doc)->item(0)->nodeValue;
         $ret['dtend'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "endDate")]/@content', $doc)->item(0)->nodeValue;
-        if(!empty($this->usr->doXPathQuery('//*[contains(@itemprop, "name")]', $doc)->item(1)->nodeValue)) {
+        if(!empty($this->usr->doXPathQuery('//*[contains(@itemprop, "name")]', $doc)->item(1))) {
             $ret['venue_name'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "name")]', $doc)->item(1)->nodeValue;
         }
-        if(!empty($this->usr->doXPathQuery('//th/*[text()="Location:"]/../../td/*[contains(@class, "s")]/text()[1]', $doc)->item(0)->nodeValue)) {
+        if(!empty($this->usr->doXPathQuery('//th/*[text()="Location:"]/../../td/*[contains(@class, "s")]/text()[1]', $doc)->item(0))) {
             $ret['venue_address'] = $this->usr->doXPathQuery('//th/*[text()="Location:"]/../../td/*[contains(@class, "s")]/text()[1]', $doc)->item(0)->nodeValue;
         }
         if ($location = $this->usr->doXPathQuery('//*[contains(@itemprop, "location")]', $doc)->item(0)) {
@@ -1238,11 +1238,11 @@ class FetLifeEvent extends FetLifeContent {
                 $ret['adr']['locality'] = $locality->attributes->getNamedItem('content')->value;
             }
         }
-        if (!empty($this->usr->doXPathQuery('//th[text()="Cost:"]/../td', $doc)->item(0)->nodeValue)) {
+        if (!empty($this->usr->doXPathQuery('//th[text()="Cost:"]/../td', $doc)->item(0))) {
             $ret['cost'] = $this->usr->doXPathQuery('//th[text()="Cost:"]/../td', $doc)->item(0)->nodeValue;
         }
 
-        if (!empty($this->usr->doXPathQuery('//th[text()="Dress code:"]/../td', $doc)->item(0)->textContent)) {
+        if (!empty($this->usr->doXPathQuery('//th[text()="Dress code:"]/../td', $doc)->item(0))) {
             $ret['dress_code'] = $this->usr->doXPathQuery('//th[text()="Dress code:"]/../td', $doc)->item(0)->textContent;
         }
         // TODO: Save an HTML representation of the description, then make a getter that returns a text-only version.
