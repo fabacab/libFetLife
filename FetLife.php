@@ -1223,6 +1223,7 @@ class FetLifeEvent extends FetLifeContent {
         $ret['tagline'] = $this->usr->doXPathQuery('//h1[contains(@itemprop, "name")]/following-sibling::p', $doc)->item(0)->nodeValue;
         $ret['dtstart'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "startDate")]/@content', $doc)->item(0)->nodeValue;
         $ret['dtend'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "endDate")]/@content', $doc)->item(0)->nodeValue;
+        $ret['venue_name'] = $this->usr->doXPathQuery('//*[contains(@itemprop, "name")]', $doc)->item(1)->nodeValue;
         $ret['venue_address'] = $this->usr->doXPathQuery('//th/*[text()="Location:"]/../../td/*[contains(@class, "s")]/text()[1]', $doc)->item(0)->nodeValue;
         if ($location = $this->usr->doXPathQuery('//*[contains(@itemprop, "location")]', $doc)->item(0)) {
             $ret['adr']['country-name'] = $location->getElementsByTagName('meta')->item(0)->attributes->getNamedItem('content')->value;
