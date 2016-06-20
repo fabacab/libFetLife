@@ -217,7 +217,7 @@ class FetLifeConnection extends FetLife {
      */
     private function findCsrfToken ($str) {
         $matches = array();
-        preg_match('/<meta name="csrf-token" content="([+a-zA-Z0-9&#;=-]+)"\/>/', $str, $matches);
+        preg_match('/<meta name="csrf-token" content="([^"]+)"/', $str, $matches);
         // Decode numeric HTML entities if there are any. See also:
         //     http://www.php.net/manual/en/function.html-entity-decode.php#104617
         $r = preg_replace_callback(
