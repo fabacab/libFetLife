@@ -57,6 +57,8 @@ class FetLifeConnection extends FetLife {
             if (!mkdir($dir, 0700)) {
                 die("Failed to create FetLife Sessions store directory at $dir");
             }
+        } else {
+            $this->cookiejar = "$dir/{$this->usr->nickname}";
         }
         $this->cookiejar = "$dir/{$this->usr->nickname}";
     }
@@ -107,8 +109,10 @@ class FetLifeConnection extends FetLife {
      */
     public function logIn () {
         // Grab FetLife login page HTML to get CSRF token.
-        $ch = curl_init(self::base_url . '/login');
+        $ch = curl_init(self::base_url . '/users/sign_in');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_COOKIEFILE, $this->cookiejar); // cookies are set when viewing sign_in page
+        curl_setopt($ch, CURLOPT_COOKIEJAR, $this->cookiejar); // and required for successful login
         if ($this->proxy_url) {
             curl_setopt($ch, CURLOPT_PROXY, $this->proxy_url);
             curl_setopt($ch, CURLOPT_PROXYTYPE, $this->proxy_type);
@@ -118,14 +122,14 @@ class FetLifeConnection extends FetLife {
 
         // Set up login credentials.
         $post_data = http_build_query(array(
-            'nickname_or_email' => $this->usr->nickname,
-            'password' => $this->usr->password,
+            'user[login]' => $this->usr->nickname,
+            'user[password]' => $this->usr->password,
             'authenticity_token' => $this->csrf_token,
-            'commit' => 'Login+to+FetLife' // Emulate pushing the "Login to FetLife" button.
+            'utf8' => '✓'
         ));
 
         // Log in to FetLife.
-        return $this->doHttpPost('/session', $post_data);
+        return $this->doHttpPost('/users/sign_in', $post_data);
     }
 
     /**
