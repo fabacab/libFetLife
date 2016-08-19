@@ -124,6 +124,7 @@ class FetLifeConnection extends FetLife {
         $post_data = http_build_query(array(
             'user[login]' => $this->usr->nickname,
             'user[password]' => $this->usr->password,
+            'user[otp_attempt]' => 'step_1',
             'authenticity_token' => $this->csrf_token,
             'utf8' => '✓'
         ));
