@@ -156,7 +156,7 @@ $kinksters = $FL->searchKinksters('maymay'); // All Kinksters whose username con
 $partial_kinksters = $FL->searchKinksters('maymay', 5) // only first 5 pages of above results.
 ```
 
-[Patches welcome](https://github.com/meitar/libFetLife/issues/new). :)
+[Patches welcome](https://github.com/fabacab/libFetLife/issues/new). :)
 
 ## Testing
 
@@ -168,10 +168,10 @@ $partial_kinksters = $FL->searchKinksters('maymay', 5) // only first 5 pages of 
 
 ## Projects that use libFetLife
 
-* [FetLife WordPress eXtended RSS Generator](https://github.com/meitar/fetlife2wxr)
-* [FetLife iCalendar](https://github.com/meitar/fetlife-icalendar/)
-* [FetLife Maltego](https://github.com/meitar/fetlife-maltego/)
-* [FetLife Export](https://github.com/meitar/fetlife-export/)
-* [FetLife Bridge](https://github.com/meitar/fetlife-bridge/)
+* [FetLife WordPress eXtended RSS Generator](https://github.com/fabacab/fetlife2wxr)
+* [FetLife iCalendar](https://github.com/fabacab/fetlife-icalendar/)
+* [FetLife Maltego](https://github.com/fabacab/fetlife-maltego/)
+* [FetLife Export](https://github.com/fabacab/fetlife-export/)
+* [FetLife Bridge](https://github.com/fabacab/fetlife-bridge/)
 
 Are you using `libFetLife`? [Let me know](http://maybemaimed.com/seminars/#booking-inquiry).
