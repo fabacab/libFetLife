@@ -990,7 +990,10 @@ class FetLifeProfile extends FetLifeContent {
     public $bio;         //< Whatever's in the "About Me" section
     public $websites;    //< An array of URLs listed by the profile.
     public $fetishes;    //< An array of FetLifeFetish objects, eventually
-
+	public $messages;
+	public $friend_requests;
+	public $mentions;
+	
     protected $events;              //< Array of FetLifeEvent objects
     protected $groups;              //< Array of FetLifeGroup objects
     protected $groups_lead;         //< Array of group IDs for which this profile is a group leader.
@@ -998,7 +1001,7 @@ class FetLifeProfile extends FetLifeContent {
     protected $events_going;        //< Array of event IDs for which this user RSVP'ed "going"
     protected $events_maybe_going;  //< Array of event IDs for which this user RSVP'ed "maybe going"
     protected $events_organizing;   //< Array of event IDs this user is organizing
-
+	
 
     function __construct ($arr_param) {
         parent::__construct($arr_param);
@@ -1108,6 +1111,15 @@ class FetLifeProfile extends FetLifeContent {
             } else {
                 $ret['num_friends'] = 0;
             }
+        }
+		if ($el = $this->usr->doXPathQuery('//*[@id="header_v2"]/div/nav/ul[3]/li[1]/a/span[3]', $doc)->item(0)) {
+            $ret['messages'] = trim($el->nodeValue)=="" ? 0 : $el->nodeValue;
+        }
+		if ($el = $this->usr->doXPathQuery('//*[@id="header_v2"]/div/nav/ul[3]/li[2]/a/span[3]', $doc)->item(0)) {
+            $ret['friend_requests'] = trim($el->nodeValue)=="" ? 0 : $el->nodeValue;
+        }
+		if ($el = $this->usr->doXPathQuery('//*[@id="header_v2"]/div/nav/ul[3]/li[3]/a/span[2]', $doc)->item(0)) {
+            $ret['mentions'] = trim($el->nodeValue)=="" ? 0 : $el->nodeValue;
         }
 
         // Parse out event info
